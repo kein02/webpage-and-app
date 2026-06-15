@@ -19,9 +19,26 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
+var speechTested = false;
+
+function testSpeech() {
+  if(!('speechSynthesis' in window)) return false;
+  var u = new SpeechSynthesisUtterance("测试");
+  u.lang = 'zh-CN';
+  u.onend = function() { speechTested = true; };
+  u.onerror = function() { speechTested = true; };
+  window.speechSynthesis.speak(u);
+  return true;
+}
+
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
+  // 首次使用先测试语音，绕过手机端静默限制
+  if(!speechTested) {
+    speechTested = true;
+    testSpeech();
+  }
   window.speechSynthesis.cancel();
   var u = new SpeechSynthesisUtterance(text);
   u.lang = 'zh-CN';
@@ -555,6 +572,13 @@ function renderSettings() {
   html += '</div>';
 
   html += '<div class="card">';
+  html += '<h3 class="section-h">语音设置</h3>';
+  html += '<div class="s-row s-toggle-row"><label>语音播报</label><label class="ts"><input type="checkbox" id="s-voice" checked><span class="ts-sl"></span></label></div>';
+  html += '<p class="s-help">训练时自动播报动作信息</p>';
+  html += '<div class="s-row"><button class="btn-save" style="width:100%;margin:0" onclick="testVoiceBtn()">🔊 测试语音</button></div>';
+  html += '</div>';
+
+  html += '<div class="card">';
   html += '<h3 class="section-h">营养参考</h3>';
   html += '<div class="nutri-grid">';
   html += '<div class="nutri-item"><span class="nutri-l">每日热量</span><span class="nutri-v">—</span></div>';
@@ -580,6 +604,9 @@ function renderSettings() {
         else el.value = saved[f.key];
       }
     });
+    // Voice toggle
+    var voiceEl = document.getElementById("s-voice");
+    if(voiceEl) voiceEl.checked = saved.voice !== false;
 
     // Update nutrition info
     var w = saved.weight || 70;
@@ -601,9 +628,19 @@ window.saveSettings = function() {
     else if(f.id === "s-diff") obj[f.key] = el.value;
     else obj[f.key] = f.parse(el.value);
   });
+  // Voice toggle
+  var voiceEl = document.getElementById("s-voice");
+  obj.voice = voiceEl ? voiceEl.checked : true;
   DB.saveSettings(obj).then(function(){
     alert("✅ 设置已保存！");
   });
+};
+
+window.testVoiceBtn = function() {
+  ST.soundOn = true;
+  var btn = document.getElementById("sound-toggle");
+  if(btn) btn.textContent = "🔊";
+  speak("测试语音，如果听到声音说明语音功能正常", null);
 };
 
 window.clearData = function() {
