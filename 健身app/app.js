@@ -20,20 +20,29 @@ function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; retu
 
 // ====== VOICE ======
 var speechReady = false;
+var speechUnlockCount = 0;
 
 function unlockSpeech() {
   if(speechReady) return;
   if(!('speechSynthesis' in window)) return;
-  // iOS 要求：先 cancel 再 speak 才能解锁语音
+  // MIUI/HyperOS 需要多次 cancel+speak 才能唤醒语音引擎
+  speechUnlockCount++;
+  window.speechSynthesis.pause();
   window.speechSynthesis.cancel();
-  var u = new SpeechSynthesisUtterance("a");
+  var u = new SpeechSynthesisUtterance("开始");
   u.lang = 'zh-CN';
-  u.volume = 0;
+  u.volume = 1;
+  u.rate = 1;
+  u.pitch = 1;
   u.onend = function() { speechReady = true; };
   u.onerror = function() { speechReady = true; };
   window.speechSynthesis.speak(u);
-  // 延迟标记为就绪，等 utterance 真正触发
-  setTimeout(function() { speechReady = true; }, 500);
+  // 多次尝试确保唤醒
+  if(speechUnlockCount < 3) {
+    setTimeout(unlockSpeech, 200);
+  } else {
+    setTimeout(function() { speechReady = true; }, 500);
+  }
 }
 
 function speak(text, cb) {
@@ -581,7 +590,8 @@ function renderSettings() {
   html += '<h3 class="section-h">语音设置</h3>';
   html += '<div class="s-row s-toggle-row"><label>语音播报</label><label class="ts"><input type="checkbox" id="s-voice" checked><span class="ts-sl"></span></label></div>';
   html += '<p class="s-help">训练时自动播报动作信息</p>';
-  html += '<div class="s-row"><button class="btn-save" style="width:100%;margin:0" onclick="testVoiceBtn()">🔊 测试语音</button></div>';
+  html += '<div class="s-row"><button class="btn-save" style="width:100%;margin:0" onclick="testVoiceBtn()">🔊 点击测试语音</button></div>';
+  html += '<p class="s-help" style="margin-top:4px">如果没声音，请检查手机音量是否打开</p>';
   html += '</div>';
 
   html += '<div class="card">';
