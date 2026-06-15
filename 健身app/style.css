@@ -102,6 +102,8 @@ body{overflow:hidden}
 .ex-d-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
 .knee-tag{font-size:11px;padding:2px 8px;border-radius:10px;background:#6bcb7722;color:#6bcb77}
+.wrist-tag{font-size:11px;padding:2px 8px;border-radius:10px;background:#4d96ff22;color:#4d96ff}
+.wrist-tag.no{font-size:11px;padding:2px 8px;border-radius:10px;background:#ff6b6b22;color:#ff6b6b}
 .ex-d-desc{font-size:13px;color:var(--text2);line-height:1.5}
 
 /* Exercise detail */

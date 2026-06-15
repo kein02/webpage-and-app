@@ -8,6 +8,7 @@ var ST = {
   restLeft: 0,
   settings: {},
   filter: "all",
+  wristOn: true,
   workoutStart: null,
   soundOn: true
 };
@@ -41,6 +42,10 @@ function todayStr() { return new Date().toISOString().split("T")[0]; }
 function mgTagHTML(mg) {
   var c = mgColor(mg), l = mgLabel(mg);
   return '<span class="mg-tag" style="background:'+c+'22;color:'+c+'">'+l+'</span>';
+}
+function wristTagHTML(on) {
+  if(on) return '<span class="wrist-tag">🛡️ 腕友好</span>';
+  return '<span class="wrist-tag no" style="background:#ff6b6b22;color:#ff6b6b">⚠️ 腕负担</span>';
 }
 
 // ====== NAVIGATION ======
@@ -336,7 +341,9 @@ function renderExLibrary() {
   var filtered = DATA.EX.filter(function(ex) {
     var ms = !term || ex.name.toLowerCase().includes(term);
     var mg = grp==="all" || ex.mg === grp;
-    return ms && mg;
+    var wk = !ST.wristOn || ex.wrist !== false;
+    var kc = !ST.settings.knee || ex.knee !== false;
+    return ms && mg && wk && kc;
   });
 
   var html = "";
@@ -370,6 +377,7 @@ function renderExLibrary() {
     html += mgTagHTML(ex.mg);
     html += '<span class="tag" style="background:'+col+'22;color:'+col+'">'+ex.diff+'</span>';
     html += '<span class="knee-tag">🛡️ 膝盖友好</span>';
+    html += wristTagHTML(ex.wrist !== false);
     html += '</div>';
     html += '<div class="ex-d-desc">'+ex.desc+'</div>';
     html += '</div>';
@@ -406,6 +414,7 @@ function renderExDetail() {
   // Title
   html += '<h1 class="ex-detail-title">'+ex.name+'</h1>';
   html += '<span class="knee-tag">🛡️ 膝盖友好</span>';
+  html += wristTagHTML(ex.wrist !== false);
 
   // Data-driven detail blocks
   var BLOCKS = [
@@ -527,7 +536,8 @@ var SETTINGS_FIELDS = [
   {id:"s-age",    key:"age",     parse:function(v){return parseInt(v)||25},  def:25},
   {id:"s-rest",   key:"restSeconds", parse:function(v){return parseInt(v)||60}, def:60},
   {id:"s-diff",   key:"diff",    parse:function(v){return v||"中级"},        def:"中级"},
-  {id:"s-knee",   key:"knee",    parse:function(v){return v!==false},        def:true}
+  {id:"s-knee",   key:"knee",    parse:function(v){return v!==false},        def:true},
+  {id:"s-wrist",  key:"wrist",   parse:function(v){return v!==false},        def:true}
 ];
 
 function renderSettings() {
@@ -552,6 +562,12 @@ function renderSettings() {
   html += '<h3 class="section-h">膝盖保护</h3>';
   html += '<div class="s-row s-toggle-row"><label>膝盖保护模式</label><label class="ts"><input type="checkbox" id="s-knee" checked><span class="ts-sl"></span></label></div>';
   html += '<p class="s-help">开启后将只显示膝盖友好的动作</p>';
+  html += '</div>';
+
+  html += '<div class="card">';
+  html += '<h3 class="section-h">手腕保护</h3>';
+  html += '<div class="s-row s-toggle-row"><label>手腕保护模式</label><label class="ts"><input type="checkbox" id="s-wrist" checked><span class="ts-sl"></span></label></div>';
+  html += '<p class="s-help">开启后将只显示对手腕友好的动作（排除手掌撑地类）</p>';
   html += '</div>';
 
   html += '<div class="card">';
@@ -585,6 +601,7 @@ function renderSettings() {
       if(el && saved[f.key] !== undefined) {
         if(f.id === "s-diff") el.value = saved[f.key];
         else if(f.id === "s-knee") el.checked = saved[f.key];
+        else if(f.id === "s-wrist") el.checked = saved[f.key];
         else el.value = saved[f.key];
       }
     });
@@ -609,6 +626,7 @@ window.saveSettings = function() {
     var el = document.getElementById(f.id);
     if(!el) { obj[f.key] = f.def; return; }
     if(f.id === "s-knee") obj[f.key] = el.checked;
+    else if(f.id === "s-wrist") obj[f.key] = el.checked;
     else if(f.id === "s-diff") obj[f.key] = el.value;
     else obj[f.key] = f.parse(el.value);
   });
@@ -637,8 +655,10 @@ window.clearData = function() {
 // ====== INIT ======
 function init() {
   ST.filter = "all";
+  ST.wristOn = true;
   DB.getSettings().then(function(saved) {
     Object.keys(saved).forEach(function(k){ ST.settings[k]=saved[k]; });
+    if(saved.wrist !== undefined) ST.wristOn = saved.wrist;
     navigateTo("plan");
   }).catch(function(){ navigateTo("plan"); });
 }
