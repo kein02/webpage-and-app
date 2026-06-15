@@ -272,15 +272,17 @@ function hideRestOverlay() {
 }
 
 function onRestDone() {
-  // 休息结束，自动进入下一组
-  var ex = ST.workout.ex[ST.curEx];
-  if(ST.curSet >= ex.s) {
-    // 所有组完成了，跳到下一个动作
-    doNextEx();
-  } else {
-    // 还有组没做，渲染下一组
-    renderWorkout();
-  }
+  // 休息结束，播报并自动进入下一组
+  speak("休息结束", function() {
+    var ex = ST.workout.ex[ST.curEx];
+    if(ST.curSet >= ex.s) {
+      // 所有组完成了，跳到下一个动作
+      doNextEx();
+    } else {
+      // 还有组没做，渲染下一组
+      renderWorkout();
+    }
+  });
 }
 
 function finishWorkout() {
