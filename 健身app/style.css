@@ -87,8 +87,8 @@ body{overflow:hidden}
 #rest-flash.flash{opacity:1}
 
 /* Exercise library */
-.search-wrap{padding:12px 16px}
-.search-input{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;outline:none}
+.search-wrap{padding:12px 16px;position:relative;z-index:10}
+.search-input{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;outline:none;position:relative;z-index:10}
 .search-input:focus{border-color:var(--accent)}
 .filter-row{display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .filter-row::-webkit-scrollbar{display:none}

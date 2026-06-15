@@ -75,14 +75,33 @@ var Views = {
 };
 
 // ====== PLAN VIEW ======
+function getPlanActions(planId) {
+  var poolKey = planId;
+  var pools = DATA.ACTION_POOLS[poolKey];
+  if(!pools) return null;
+  var kneeOn = ST.settings.knee !== false;
+  var wristOn = ST.wristOn !== false;
+  if(kneeOn && wristOn) return pools.wrist;
+  if(kneeOn && !wristOn) return pools.normal;
+  if(!kneeOn && wristOn) return pools.wrist;
+  return pools.normal;
+}
+
 function renderPlan() {
   var c = document.getElementById("plan-list");
   if(!c) return;
   var today = new Date().getDay();
   var plan = DATA.PLANS.find(function(p){return p.day===today;});
   if(!plan) plan = DATA.PLANS[0];
+  var actions = getPlanActions(plan.id);
+  if(!actions) {
+    // 降级：使用旧 PLANS 数据
+    var totalSets = 0;
+    plan.ex.forEach(function(e){totalSets+=e.s;});
+    actions = plan.ex;
+  }
   var totalSets = 0;
-  plan.ex.forEach(function(e){totalSets+=e.s;});
+  actions.forEach(function(e){totalSets+=e.s;});
 
   var html = "";
   // Today header
@@ -92,10 +111,10 @@ function renderPlan() {
   html += '<div class="today-meta">' + totalSets + '组 · 约30分钟</div>';
   html += '<div class="ex-cards">';
 
-  plan.ex.forEach(function(ex,i) {
+  actions.forEach(function(ex,i) {
     var ed = exData(ex.eid);
     var col = ed ? mgColor(ed.mg) : "#4d96ff";
-    html += '<div class="ex-card" onclick="startWorkout(\''+plan.id+'\',0)">';
+    html += '<div class="ex-card" onclick="startWorkoutDynamic(\''+plan.id+'\',\''+ex.n+'\')">';
     html += '<div class="ex-num" style="border-color:'+col+'">'+(i+1)+'</div>';
     html += '<div class="ex-info">';
     html += '<div class="ex-name">'+ex.n+'</div>';
@@ -106,7 +125,7 @@ function renderPlan() {
   });
 
   html += '</div>';
-  html += '<button class="btn-start" onclick="startWorkout(\''+plan.id+'\',0)">▶ 开始训练</button>';
+  html += '<button class="btn-start" onclick="startWorkoutDynamic(\''+plan.id+'\',\''+actions[0].n+'\')">▶ 开始训练</button>';
   html += '</div>';
 
   // Week preview
@@ -114,9 +133,17 @@ function renderPlan() {
   html += '<h3 class="section-h">本周计划</h3>';
   DATA.PLANS.forEach(function(p) {
     var isToday = p.day === today;
+    var acts = getPlanActions(p.id);
+    var name = p.name;
+    if(acts) {
+      var kneeOn = ST.settings.knee !== false;
+      var wristOn = ST.wristOn !== false;
+      var mode = (!kneeOn && !wristOn) ? "自由组合" : (kneeOn && wristOn ? "双保护" : (kneeOn ? "护腕" : "护膝"));
+      name += ' <span style="font-size:11px;color:var(--text2)">(' + mode + ')</span>';
+    }
     html += '<div class="day-row' + (isToday?' day-today':'') + '">';
     html += '<span class="day-label">' + DATA.DAYS[p.day] + '</span>';
-    html += '<span>' + p.name + '</span>';
+    html += '<span>' + name + '</span>';
     if(isToday) html += '<span class="today-dot"></span>';
     html += '</div>';
   });
@@ -124,6 +151,28 @@ function renderPlan() {
 
   c.innerHTML = html;
 }
+
+window.startWorkoutDynamic = function(planId, exName) {
+  var plan = DATA.PLANS.find(function(p){return p.id===planId;});
+  if(!plan) return;
+  var actions = getPlanActions(planId);
+  if(!actions) {
+    startWorkout(planId, 0);
+    return;
+  }
+  var idx = actions.findIndex(function(a){return a.n === exName;});
+  if(idx < 0) idx = 0;
+  ST.workout = plan;
+  ST.workoutActions = actions;
+  ST.curEx = idx;
+  ST.curSet = 0;
+  ST.workoutStart = new Date().toISOString();
+  clearRest();
+  navigateTo("workout");
+  renderWorkout();
+  var ex = actions[idx];
+  speak("开始训练，" + ex.n + "，共" + ex.s + "组，每组" + ex.r + "次");
+};
 
 function startWorkout(planId, startIdx) {
   var plan = DATA.PLANS.find(function(p){return p.id===planId;});
@@ -136,8 +185,8 @@ function startWorkout(planId, startIdx) {
   navigateTo("workout");
   renderWorkout();
   // 语音播报第一个动作
-  var ex = plan.ex[0];
-  speak("开始训练，" + ex.n + "，共" + ex.s + "组，每组" + ex.r + "次");
+  var ex = ST.workoutActions || plan.ex;
+  speak("开始训练，" + ex[0].n + "，共" + ex[0].s + "组，每组" + ex[0].r + "次");
 }
 
 // ====== WORKOUT VIEW ======
@@ -145,7 +194,7 @@ function renderWorkout() {
   var c = document.getElementById("workout-content");
   if(!c || !ST.workout) return;
   var plan = ST.workout;
-  var exArr = plan.ex;
+  var exArr = ST.workoutActions || plan.ex;
   var ex = exArr[ST.curEx];
   if(!ex) return;
   var ed = exData(ex.eid);
@@ -204,7 +253,8 @@ window.adjRep = function(d) {
 };
 
 function recordRep() {
-  var ex = ST.workout.ex[ST.curEx];
+  var exArr = ST.workoutActions || ST.workout.ex;
+  var ex = exArr[ST.curEx];
   var ed = exData(ex.eid);
   if(!ed) return;
   var rv = parseInt(document.getElementById("rep-val")?.textContent || ex.r);
@@ -216,7 +266,7 @@ window.doCompleteSet = function() {
   ST.curSet++;
   renderWorkout();
   // 渲染完再开始休息倒计时
-  startRest(ST.workout.ex[ST.curEx].rest);
+  startRest((ST.workoutActions || ST.workout.ex)[ST.curEx].rest);
 };
 
 window.doCompleteEx = function() {
@@ -263,7 +313,7 @@ function startRest(sec) {
 
 // 切换动作时播报
 function announceExercise(idx) {
-  var ex = ST.workout.ex[idx];
+  var ex = (ST.workoutActions || ST.workout.ex)[idx];
   speak("第" + (idx+1) + "个动作，" + ex.n + "，共" + ex.s + "组，每组" + ex.r + "次");
 }
 
@@ -288,7 +338,7 @@ function hideRestOverlay() {
 function onRestDone() {
   // 休息结束，播报并自动进入下一组
   speak("休息结束", function() {
-    var ex = ST.workout.ex[ST.curEx];
+    var ex = (ST.workoutActions || ST.workout.ex)[ST.curEx];
     if(ST.curSet >= ex.s) {
       // 所有组完成了，跳到下一个动作
       doNextEx();
@@ -316,7 +366,7 @@ window.doFinish = function() {
   var now = new Date();
   var dur = Math.round((now-st)/1000);
   var vol = 0;
-  ST.workout.ex.forEach(function(e){vol += e.s * e.r;});
+  (ST.workoutActions || ST.workout.ex).forEach(function(e){vol += e.s * e.r;});
   var log = {
     date: new Date().toISOString(),
     planId: ST.workout.id,
@@ -335,8 +385,22 @@ window.doFinish = function() {
 function renderExLibrary() {
   var c = document.getElementById("ex-list");
   if(!c) return;
-  var term = (document.getElementById("ex-search")?.value||"").toLowerCase();
   var grp = ST.filter || "all";
+
+  // 搜索框只创建一次
+  var searchWrap = c.querySelector(".search-wrap");
+  if(!searchWrap) {
+    searchWrap = document.createElement("div");
+    searchWrap.className = "search-wrap";
+    searchWrap.innerHTML = '<input type="text" id="ex-search" placeholder="🔍 搜索动作名称..." class="search-input">';
+    c.insertBefore(searchWrap, c.firstChild);
+  }
+  var searchInput = document.getElementById("ex-search");
+  if(!searchInput._bound) {
+    searchInput.addEventListener("input", function() { renderExLibrary(); });
+    searchInput._bound = true;
+  }
+  var term = (searchInput.value || "").toLowerCase();
 
   var filtered = DATA.EX.filter(function(ex) {
     var ms = !term || ex.name.toLowerCase().includes(term);
@@ -347,22 +411,32 @@ function renderExLibrary() {
   });
 
   var html = "";
-  // Search
-  html += '<div class="search-wrap">';
-  html += '<input type="text" id="ex-search" placeholder="🔍 搜索动作名称..." oninput="renderExLibrary()" class="search-input">';
-  html += '</div>';
 
-  // Filter buttons
-  html += '<div class="filter-row">';
+  // Filter buttons（只更新一次）
+  var filterRow = c.querySelector(".filter-row");
+  if(!filterRow) {
+    filterRow = document.createElement("div");
+    filterRow.className = "filter-row";
+    c.insertBefore(filterRow, searchWrap.nextSibling);
+  }
+  html = '';
   html += '<button class="filter-btn'+(grp==="all"?" filter-active":"")+'" onclick="setFilter(\'all\')">全部</button>';
   Object.keys(DATA.LABELS).forEach(function(g) {
     var col = mgColor(g);
     var cls = grp===g ? "filter-active":"";
     html += '<button class="filter-btn '+cls+'" data-mg="'+g+'" style="'+(grp===g?'background:'+col+';color:#fff;border-color:'+col:'')+'" onclick="setFilter(\''+g+'\')">'+DATA.LABELS[g]+'</button>';
   });
-  html += '</div>';
+  filterRow.innerHTML = html;
 
-  // Ex cards
+  // Ex cards（只更新这部分）
+  var cardsContainer = c.querySelector(".ex-cards-container");
+  if(!cardsContainer) {
+    cardsContainer = document.createElement("div");
+    cardsContainer.className = "ex-cards-container";
+    c.insertBefore(cardsContainer, filterRow.nextSibling);
+  }
+
+  html = "";
   if(filtered.length === 0) {
     html += '<div class="empty-msg">没有找到匹配的动作</div>';
   }
@@ -383,7 +457,7 @@ function renderExLibrary() {
     html += '</div>';
   });
 
-  c.innerHTML = html;
+  cardsContainer.innerHTML = html;
 }
 
 window.setFilter = function(g) { ST.filter = g; renderExLibrary(); };
