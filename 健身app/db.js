@@ -108,9 +108,16 @@
         var ws = new Date(now); ws.setDate(ws.getDate() - i*7);
         var we = new Date(ws); we.setDate(we.getDate() + 6);
         var key = ws.toISOString().split("T")[0];
-        var cnt = logs.filter(function(l) { var d = new Date(l.date); return d >= ws && d <= we; }).length;
-        weekly[key] = cnt;
+        weekly[key] = 0;
       }
+      // Single-pass bucket: assign each log to its week
+      logs.forEach(function(l) {
+        var d = new Date(l.date);
+        var weekStart = new Date(d);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        var k = weekStart.toISOString().split("T")[0];
+        if (k in weekly) weekly[k]++;
+      });
       return {totalWorkouts:totalW, totalDuration:totalD, totalVolume:totalV, weeklyData:weekly, recentLogs:logs.slice(0,7)};
     });
   }

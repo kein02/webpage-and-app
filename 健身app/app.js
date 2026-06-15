@@ -16,6 +16,11 @@ function exData(id) { return DATA.EX.find(function(e){return e.id===id;}); }
 function mgLabel(mg) { return DATA.LABELS[mg] || "综合"; }
 function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+function mgTagHTML(mg) {
+  var c = mgColor(mg), l = mgLabel(mg);
+  return '<span class="mg-tag" style="background:'+c+'22;color:'+c+'">'+l+'</span>';
+}
 
 // ====== NAVIGATION ======
 function navigateTo(view) {
@@ -33,6 +38,15 @@ function navigateTo(view) {
   if(view==="progress") renderProgress();
   if(view==="settings") renderSettings();
 }
+
+// View registry
+var Views = {
+  plan: renderPlan,
+  exercise: renderExLibrary,
+  "ex-detail": renderExDetail,
+  progress: renderProgress,
+  settings: renderSettings
+};
 
 // ====== PLAN VIEW ======
 function renderPlan() {
@@ -137,11 +151,10 @@ function renderWorkout() {
   html += '</div>';
 
   // Buttons
-  if(ST.curSet < ex.s - 1) {
-    html += '<button class="btn-done" onclick="doCompleteSet()">✓ 完成这组</button>';
-  } else {
-    html += '<button class="btn-done" onclick="doCompleteEx()">✓ 完成动作</button>';
-  }
+  var isLastSet = ST.curSet >= ex.s - 1;
+  var fn = isLastSet ? 'doCompleteEx' : 'doCompleteSet';
+  var txt = isLastSet ? '完成动作' : '完成这组';
+  html += '<button class="btn-done" onclick="'+fn+'()">✓ '+txt+'</button>';
 
   // Nav
   html += '<div class="w-nav">';
@@ -161,23 +174,23 @@ window.adjRep = function(d) {
   el.textContent = Math.max(0, v+d);
 };
 
-window.doCompleteSet = function() {
+function recordRep() {
   var ex = ST.workout.ex[ST.curEx];
   var ed = exData(ex.eid);
+  if(!ed) return;
   var rv = parseInt(document.getElementById("rep-val")?.textContent || ex.r);
-  var today = new Date().toISOString().split("T")[0];
-  if(ed) DB.saveProgress(ed.id, today, rv, true);
+  DB.saveProgress(ed.id, todayStr(), rv, true);
+}
+
+window.doCompleteSet = function() {
+  recordRep();
   ST.curSet++;
-  startRest(ex.rest);
+  startRest(ST.workout.ex[ST.curEx].rest);
   renderWorkout();
 };
 
 window.doCompleteEx = function() {
-  var ex = ST.workout.ex[ST.curEx];
-  var ed = exData(ex.eid);
-  var rv = parseInt(document.getElementById("rep-val")?.textContent || ex.r);
-  var today = new Date().toISOString().split("T")[0];
-  if(ed) DB.saveProgress(ed.id, today, rv, true);
+  recordRep();
   doNextEx();
 };
 
@@ -196,11 +209,11 @@ function startRest(sec) {
   clearRest();
   ST.restLeft = sec;
   showRestTimer(sec);
+  var nEl = document.getElementById("rt-num");
   ST.restTimer = setInterval(function() {
     ST.restLeft--;
     if(ST.restLeft <= 0) { clearRest(); onRestDone(); return; }
-    var n = document.getElementById("rt-num");
-    if(n) n.textContent = ST.restLeft;
+    if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
 }
 
@@ -290,7 +303,7 @@ function renderExLibrary() {
     html += '<div class="ex-d-name">'+ex.name+'</div>';
     html += '</div>';
     html += '<div class="ex-d-tags">';
-    html += '<span class="tag" style="background:'+col+'22;color:'+col+'">'+mgLabel(ex.mg)+'</span>';
+    html += mgTagHTML(ex.mg);
     html += '<span class="tag" style="background:'+col+'22;color:'+col+'">'+ex.diff+'</span>';
     html += '<span class="knee-tag">🛡️ 膝盖友好</span>';
     html += '</div>';
@@ -322,70 +335,51 @@ function renderExDetail() {
   html += '<div class="ex-detail-top">';
   html += '<div class="ex-back-btn" onclick="navigateTo(\'exercise\')">← 返回</div>';
   html += '<div class="ex-d-header">';
-  html += '<span class="mg-tag" style="background:'+col+'22;color:'+col+'">'+mgLabel(ex.mg)+'</span>';
+  html += mgTagHTML(ex.mg);
   html += '<span class="tag">'+ex.diff+'</span>';
-  html += '</div>';
-  html += '</div>';
+  html += '</div></div>';
 
   // Title
   html += '<h1 class="ex-detail-title">'+ex.name+'</h1>';
   html += '<span class="knee-tag">🛡️ 膝盖友好</span>';
 
-  // Equipment
-  if(ex.equipment) {
-    html += '<div class="detail-block"><h3>🏠 所需器材</h3><p>'+ex.equipment+'</p></div>';
-  }
+  // Data-driven detail blocks
+  var BLOCKS = [
+    {field:"equipment", title:"🏠 所需器材",  tag:"p"},
+    {field:"breathing", title:"🫁 呼吸节奏",  tag:"p"},
+    {field:"targetMuscles", title:"🎯 目标肌群", tag:"p"},
+    {field:"desc",      title:"💡 动作说明",  tag:"p"},
+    {field:"steps",     title:"📝 分步指导",  list:"steps"},
+    {field:"tips",      title:"✅ 要点提示",  list:"tips"},
+    {field:"mistakes",  title:"❌ 常见错误",  list:"mistakes"},
+    {field:"prog",      title:"📈 进阶方向",  list:"prog"},
+    {field:"substitute",title:"🔄 替代动作",  list:"substitute"}
+  ];
 
-  // Breathing
-  if(ex.breathing) {
-    html += '<div class="detail-block"><h3>🫁 呼吸节奏</h3><p>'+ex.breathing+'</p></div>';
-  }
+  BLOCKS.forEach(function(block) {
+    var val = ex[block.field];
+    if(!val || !val.length && typeof val !== "string") return;
+    html += '<div class="detail-block"><h3>'+block.title+'</h3>';
 
-  // Target muscles
-  if(ex.targetMuscles) {
-    html += '<div class="detail-block"><h3>🎯 目标肌群</h3><p>'+ex.targetMuscles+'</p></div>';
-  }
-
-  // Description
-  html += '<div class="detail-block"><h3>💡 动作说明</h3><p>'+ex.desc+'</p></div>';
-
-  // Steps
-  if(ex.steps && ex.steps.length > 0) {
-    html += '<div class="detail-block"><h3>📝 分步指导</h3>';
-    html += '<div class="step-list">';
-    ex.steps.forEach(function(s, i) {
-      html += '<div class="step-item"><span class="step-num">'+(i+1)+'</span><span class="step-text">'+s+'</span></div>';
-    });
-    html += '</div></div>';
-  }
-
-  // Tips
-  if(ex.tips && ex.tips.length > 0) {
-    html += '<div class="detail-block"><h3>✅ 要点提示</h3><ul class="tip-list">';
-    ex.tips.forEach(function(t){html+='<li class="tip-item">✓ '+t+'</li>';});
-    html += '</ul></div>';
-  }
-
-  // Mistakes
-  if(ex.mistakes && ex.mistakes.length > 0) {
-    html += '<div class="detail-block"><h3>❌ 常见错误</h3><ul class="tip-list mistakes-list">';
-    ex.mistakes.forEach(function(m){html+='<li class="tip-item err-li">✗ '+m+'</li>';});
-    html += '</ul></div>';
-  }
-
-  // Progression
-  if(ex.prog && ex.prog.length > 0) {
-    html += '<div class="detail-block"><h3>📈 进阶方向</h3><div class="prog-list">';
-    ex.prog.forEach(function(p){html+='<div class="prog-item">→ '+p+'</div>';});
-    html += '</div></div>';
-  }
-
-  // Substitutes
-  if(ex.substitute && ex.substitute.length > 0) {
-    html += '<div class="detail-block"><h3>🔄 替代动作</h3><div class="prog-list">';
-    ex.substitute.forEach(function(s){html+='<div class="prog-item sub-item">⇄ '+s+'</div>';});
-    html += '</div></div>';
-  }
+    if(typeof val === "string") {
+      html += '<p>'+val+'</p>';
+    } else if(block.list === "steps") {
+      html += '<div class="step-list">';
+      val.forEach(function(item, i) {
+        html += '<div class="step-item"><span class="step-num">'+(i+1)+'</span><span class="step-text">'+item+'</span></div>';
+      });
+      html += '</div>';
+    } else {
+      var cls = block.list === "mistakes" ? "mistakes-list" : "tip-list";
+      var prefix = block.list === "tips" ? "✓ " : block.list === "mistakes" ? "✗ " : block.list === "prog" ? "→ " : block.list === "substitute" ? "⇄ " : "";
+      html += '<ul class="'+cls+'">';
+      val.forEach(function(item) {
+        html += '<li class="'+(block.list === "mistakes" ? "tip-item err-li" : "tip-item")+'">'+prefix+item+'</li>';
+      });
+      html += '</ul>';
+    }
+    html += '</div>';
+  });
 
   // History chart
   html += '<div class="detail-block"><h3>📊 最近30天记录</h3><div id="ex-chart-'+id+'">加载中...</div></div>';
@@ -393,16 +387,16 @@ function renderExDetail() {
   c.innerHTML = html;
 
   // Load history
+  var containerRef = c.lastElementChild;
   DB.getHistory(id, 30).then(function(hist) {
-    var ce = document.getElementById("ex-chart-"+id);
-    if(!ce) return;
-    if(hist.length === 0) { ce.innerHTML = '<div class="empty-msg">暂无记录，开始训练吧！</div>'; return; }
-    ce.innerHTML = '<div class="mini-chart">';
+    if(!containerRef) return;
+    if(hist.length === 0) { containerRef.innerHTML = '<div class="empty-msg">暂无记录，开始训练吧！</div>'; return; }
+    containerRef.innerHTML = '<div class="mini-chart">';
     hist.slice(-7).forEach(function(h) {
       var h2 = Math.min(100, (h.reps/30)*100);
-      ce.innerHTML += '<div class="m-bar" style="height:'+h2+'%;background:'+col+'"><span class="m-val">'+h.reps+'</span></div>';
+      containerRef.innerHTML += '<div class="m-bar" style="height:'+h2+'%;background:'+col+'"><span class="m-val">'+h.reps+'</span></div>';
     });
-    ce.innerHTML += '</div>';
+    containerRef.innerHTML += '</div>';
   });
 };
 
@@ -437,7 +431,7 @@ function renderProgress() {
     var wc = document.getElementById("week-chart");
     if(wc) {
       var keys = Object.keys(s.weeklyData).reverse().slice(0,4);
-      var max = Math.max(1, Math.max.apply(null, Object.values(s.weeklyData)));
+      var max = Math.max(1, ...Object.values(s.weeklyData));
       var maxH = wc.parentElement.clientHeight - 60;
       keys.forEach(function(k){
         var v = s.weeklyData[k]||0;
@@ -463,10 +457,19 @@ function renderProgress() {
 }
 
 // ====== SETTINGS VIEW ======
+var SETTINGS_FIELDS = [
+  {id:"s-weight", key:"weight",  parse:function(v){return parseInt(v)||70},  def:70},
+  {id:"s-height", key:"height",  parse:function(v){return parseInt(v)||170}, def:170},
+  {id:"s-age",    key:"age",     parse:function(v){return parseInt(v)||25},  def:25},
+  {id:"s-rest",   key:"restSeconds", parse:function(v){return parseInt(v)||60}, def:60},
+  {id:"s-diff",   key:"diff",    parse:function(v){return v||"中级"},        def:"中级"},
+  {id:"s-knee",   key:"knee",    parse:function(v){return v!==false},        def:true}
+];
+
 function renderSettings() {
   var c = document.getElementById("settings-content");
   if(!c) return;
-  html = "";
+  var html = "";
 
   html += '<div class="card">';
   html += '<h3 class="section-h">个人信息</h3>';
@@ -505,12 +508,14 @@ function renderSettings() {
 
   // Load saved settings
   DB.getSettings().then(function(saved) {
-    if(saved.weight) document.getElementById("s-weight").value = saved.weight;
-    if(saved.height) document.getElementById("s-height").value = saved.height;
-    if(saved.age) document.getElementById("s-age").value = saved.age;
-    if(saved.restSeconds) document.getElementById("s-rest").value = saved.restSeconds;
-    if(saved.diff) document.getElementById("s-diff").value = saved.diff;
-    if(saved.knee !== undefined) document.getElementById("s-knee").checked = saved.knee;
+    SETTINGS_FIELDS.forEach(function(f) {
+      var el = document.getElementById(f.id);
+      if(el && saved[f.key] !== undefined) {
+        if(f.id === "s-diff") el.value = saved[f.key];
+        else if(f.id === "s-knee") el.checked = saved[f.key];
+        else el.value = saved[f.key];
+      }
+    });
 
     // Update nutrition info
     var w = saved.weight || 70;
@@ -524,14 +529,14 @@ function renderSettings() {
 }
 
 window.saveSettings = function() {
-  var obj = {
-    weight: parseInt(document.getElementById("s-weight")?.value)||70,
-    height: parseInt(document.getElementById("s-height")?.value)||170,
-    age: parseInt(document.getElementById("s-age")?.value)||25,
-    restSeconds: parseInt(document.getElementById("s-rest")?.value)||60,
-    diff: document.getElementById("s-diff")?.value || "中级",
-    knee: document.getElementById("s-knee")?.checked !== false
-  };
+  var obj = {};
+  SETTINGS_FIELDS.forEach(function(f) {
+    var el = document.getElementById(f.id);
+    if(!el) { obj[f.key] = f.def; return; }
+    if(f.id === "s-knee") obj[f.key] = el.checked;
+    else if(f.id === "s-diff") obj[f.key] = el.value;
+    else obj[f.key] = f.parse(el.value);
+  });
   DB.saveSettings(obj).then(function(){
     alert("✅ 设置已保存！");
   });
