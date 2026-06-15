@@ -16,6 +16,18 @@ function exData(id) { return DATA.EX.find(function(e){return e.id===id;}); }
 function mgLabel(mg) { return DATA.LABELS[mg] || "综合"; }
 function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
+
+// ====== VOICE ======
+function speak(text, cb) {
+  if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
+  window.speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  u.rate = 0.9;
+  u.onend = function() { if(cb) cb(); };
+  u.onerror = function() { if(cb) cb(); };
+  window.speechSynthesis.speak(u);
+}
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 function mgTagHTML(mg) {
   var c = mgColor(mg), l = mgLabel(mg);
@@ -109,6 +121,13 @@ function startWorkout(planId, startIdx) {
   clearRest();
   navigateTo("workout");
   renderWorkout();
+  // 语音播报第一个动作
+  var ex = plan.ex[0];
+  var ed = exData(ex.eid);
+  var totalSets = ex.s;
+  speak("开始训练，" + ex.n + "，共" + totalSets + "组，每组" + ex.r + "次，休息" + ex.rest + "秒", function() {
+    startRestTimerWithVoice(ex.rest);
+  });
 }
 
 // ====== WORKOUT VIEW ======
@@ -195,13 +214,13 @@ window.doCompleteEx = function() {
 };
 
 window.doPrevEx = function() {
-  if(ST.curEx > 0) { ST.curEx--; ST.curSet = 0; renderWorkout(); }
+  if(ST.curEx > 0) { ST.curEx--; ST.curSet = 0; announceExercise(ST.curEx); renderWorkout(); }
 };
 
 window.doNextEx = function() {
   var exArr = ST.workout.ex;
   if(ST.curEx < exArr.length - 1) {
-    ST.curEx++; ST.curSet = 0; clearRest(); renderWorkout();
+    ST.curEx++; ST.curSet = 0; clearRest(); announceExercise(ST.curEx); renderWorkout();
   }
 };
 
@@ -212,9 +231,41 @@ function startRest(sec) {
   var nEl = document.getElementById("rt-num");
   ST.restTimer = setInterval(function() {
     ST.restLeft--;
-    if(ST.restLeft <= 0) { clearRest(); onRestDone(); return; }
+    if(ST.restLeft <= 0) {
+      clearRest();
+      onRestDone();
+      return;
+    }
     if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
+}
+
+// 休息计时 + 语音播报
+function startRestTimerWithVoice(sec) {
+  clearRest();
+  ST.restLeft = sec;
+  showRestTimer(sec);
+  var nEl = document.getElementById("rt-num");
+  ST.restTimer = setInterval(function() {
+    ST.restLeft--;
+    if(ST.restLeft <= 0) {
+      clearRest();
+      onRestDone();
+      // 休息结束播报
+      var ex = ST.workout.ex[ST.curEx];
+      speak("休息结束，准备下一组", null);
+      return;
+    }
+    if(nEl) nEl.textContent = ST.restLeft;
+  }, 1000);
+}
+
+// 切换动作时播报
+function announceExercise(idx) {
+  var ex = ST.workout.ex[idx];
+  var ed = exData(ex.eid);
+  var totalSets = ex.s;
+  speak("第" + (idx+1) + "个动作，" + ex.n + "，共" + totalSets + "组，每组" + ex.r + "次，休息" + ex.rest + "秒");
 }
 
 function clearRest() {
