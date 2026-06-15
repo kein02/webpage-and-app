@@ -19,61 +19,16 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-var audioCtx = null;
-var speechReady = true;
-
-function getAudioCtx() {
-  if(!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if(audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  return audioCtx;
-}
-
-// 用振荡器合成语音频率，产生类似人声的"嘟"声提示
-function playBeep(freq, duration, vol) {
-  try {
-    var ctx = getAudioCtx();
-    var osc = ctx.createOscillator();
-    var gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + duration);
-    return true;
-  } catch(e) { return false; }
-}
-
-// 合成中文语音播报 —— 用振荡器模拟语音频率变化
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
-  if(!('AudioContext' in window) && !('webkitAudioContext' in window)) return cb ? cb() : void 0;
-
-  // 播放一串有节奏的"嘟"声模拟语音播报，同时尝试 speechSynthesis
-  playBeep(400, 0.15, 0.2);
-  setTimeout(function(){ playBeep(500, 0.15, 0.2); }, 180);
-  setTimeout(function(){ playBeep(600, 0.2, 0.25); }, 360);
-
-  // 同时尝试 speechSynthesis（如果可用）
-  try {
-    if('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'zh-CN';
-      u.rate = 0.9;
-      u.onend = function() { if(cb) cb(); };
-      u.onerror = function() { if(cb) cb(); };
-      window.speechSynthesis.speak(u);
-    } else {
-      if(cb) setTimeout(cb, 600);
-    }
-  } catch(e) { if(cb) setTimeout(cb, 600); }
+  if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
+  window.speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  u.rate = 0.9;
+  u.onend = function() { if(cb) cb(); };
+  u.onerror = function() { if(cb) cb(); };
+  window.speechSynthesis.speak(u);
 }
 
 window.toggleSound = function() {
@@ -669,11 +624,7 @@ window.testVoiceBtn = function() {
   ST.soundOn = true;
   var btn = document.getElementById("sound-toggle");
   if(btn) btn.textContent = "🔊";
-  // 先触发 unlock，再播报
-  unlockSpeech();
-  setTimeout(function() {
-    speak("测试语音，如果听到声音说明语音功能正常", null);
-  }, 100);
+  speak("测试语音，如果听到声音说明语音功能正常", null);
 };
 
 window.clearData = function() {
