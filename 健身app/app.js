@@ -229,12 +229,17 @@ function startRest(sec) {
   ST.restLeft = sec;
   showRestTimer(sec);
   var nEl = document.getElementById("rt-num");
+  var lastSpoken = -1;
   ST.restTimer = setInterval(function() {
     ST.restLeft--;
     if(ST.restLeft <= 0) {
       clearRest();
       onRestDone();
       return;
+    }
+    // 每10秒播报一次，最后5秒每秒播报
+    if (ST.restLeft % 10 === 0 || ST.restLeft <= 5) {
+      speak(ST.restLeft + "秒");
     }
     if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
@@ -255,6 +260,9 @@ function startRestTimerWithVoice(sec) {
       var ex = ST.workout.ex[ST.curEx];
       speak("休息结束，准备下一组", null);
       return;
+    }
+    if (ST.restLeft % 10 === 0 || ST.restLeft <= 5) {
+      speak(ST.restLeft + "秒");
     }
     if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
