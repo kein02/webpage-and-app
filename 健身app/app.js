@@ -123,11 +123,7 @@ function startWorkout(planId, startIdx) {
   renderWorkout();
   // 语音播报第一个动作
   var ex = plan.ex[0];
-  var ed = exData(ex.eid);
-  var totalSets = ex.s;
-  speak("开始训练，" + ex.n + "，共" + totalSets + "组，每组" + ex.r + "次，休息" + ex.rest + "秒", function() {
-    startRestTimerWithVoice(ex.rest);
-  });
+  speak("开始训练，" + ex.n + "，共" + ex.s + "组，每组" + ex.r + "次");
 }
 
 // ====== WORKOUT VIEW ======
@@ -229,7 +225,7 @@ function startRest(sec) {
   ST.restLeft = sec;
   showRestTimer(sec);
   var nEl = document.getElementById("rt-num");
-  var lastSpoken = -1;
+  speak("休息" + sec + "秒");
   ST.restTimer = setInterval(function() {
     ST.restLeft--;
     if(ST.restLeft <= 0) {
@@ -237,33 +233,8 @@ function startRest(sec) {
       onRestDone();
       return;
     }
-    // 每10秒播报一次，最后5秒每秒播报
-    if (ST.restLeft % 10 === 0 || ST.restLeft <= 5) {
-      speak(ST.restLeft + "秒");
-    }
-    if(nEl) nEl.textContent = ST.restLeft;
-  }, 1000);
-}
-
-// 休息计时 + 语音播报
-function startRestTimerWithVoice(sec) {
-  clearRest();
-  ST.restLeft = sec;
-  showRestTimer(sec);
-  var nEl = document.getElementById("rt-num");
-  ST.restTimer = setInterval(function() {
-    ST.restLeft--;
-    if(ST.restLeft <= 0) {
-      clearRest();
-      onRestDone();
-      // 休息结束播报
-      var ex = ST.workout.ex[ST.curEx];
-      speak("休息结束，准备下一组", null);
-      return;
-    }
-    if (ST.restLeft % 10 === 0 || ST.restLeft <= 5) {
-      speak(ST.restLeft + "秒");
-    }
+    // 逐秒播报
+    speak(ST.restLeft);
     if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
 }
@@ -292,6 +263,13 @@ function onRestDone() {
   if(a) { a.style.display = "none"; a.querySelector("span").textContent = ST.restLeft; }
   var flash = document.getElementById("rest-flash");
   if(flash) { flash.classList.add("flash"); setTimeout(function(){flash.classList.remove("flash");}, 2000); }
+  // 休息结束：判断是否完成所有组
+  var ex = ST.workout.ex[ST.curEx];
+  if(ST.curSet >= ex.s - 1) {
+    doNextEx();
+  } else {
+    renderWorkout();
+  }
 }
 
 window.doSkipRest = function() {
