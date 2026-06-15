@@ -5,9 +5,13 @@ body{overflow:hidden}
 
 /* Layout */
 .app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;position:relative}
-.header{padding:16px 20px 12px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.header{padding:16px 20px 12px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
 .header h1{font-size:20px;font-weight:700;letter-spacing:1px}
 .header h1 span{color:var(--accent);font-weight:400}
+
+/* Sound toggle */
+.sound-btn{width:32px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sound-btn:active{opacity:.7}
 .views{flex:1;overflow-y:auto;padding-bottom:72px;-webkit-overflow-scrolling:touch}
 .view{display:none;min-height:100%}
 .view.active{display:block}

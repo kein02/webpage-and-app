@@ -8,7 +8,8 @@ var ST = {
   restLeft: 0,
   settings: {},
   filter: "all",
-  workoutStart: null
+  workoutStart: null,
+  soundOn: true
 };
 
 // ====== HELPERS ======
@@ -19,6 +20,7 @@ function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; retu
 
 // ====== VOICE ======
 function speak(text, cb) {
+  if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
   window.speechSynthesis.cancel();
   var u = new SpeechSynthesisUtterance(text);
@@ -28,6 +30,13 @@ function speak(text, cb) {
   u.onerror = function() { if(cb) cb(); };
   window.speechSynthesis.speak(u);
 }
+
+window.toggleSound = function() {
+  ST.soundOn = !ST.soundOn;
+  var btn = document.getElementById("sound-toggle");
+  if(btn) btn.textContent = ST.soundOn ? "🔊" : "🔇";
+  if(!ST.soundOn) window.speechSynthesis.cancel();
+};
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 function mgTagHTML(mg) {
   var c = mgColor(mg), l = mgLabel(mg);
