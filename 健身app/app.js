@@ -200,17 +200,25 @@ function recordRep() {
 window.doCompleteSet = function() {
   recordRep();
   ST.curSet++;
-  startRest(ST.workout.ex[ST.curEx].rest);
   renderWorkout();
+  // 渲染完再开始休息倒计时
+  startRest(ST.workout.ex[ST.curEx].rest);
 };
 
 window.doCompleteEx = function() {
   recordRep();
-  doNextEx();
+  // 判断是否是最后一个动作
+  var exArr = ST.workout.ex;
+  if(ST.curEx < exArr.length - 1) {
+    doNextEx();
+  } else {
+    // 最后一个动作完成，结束训练
+    finishWorkout();
+  }
 };
 
 window.doPrevEx = function() {
-  if(ST.curEx > 0) { ST.curEx--; ST.curSet = 0; announceExercise(ST.curEx); renderWorkout(); }
+  if(ST.curEx > 0) { ST.curEx--; ST.curSet = 0; clearRest(); announceExercise(ST.curEx); renderWorkout(); }
 };
 
 window.doNextEx = function() {
@@ -230,10 +238,10 @@ function startRest(sec) {
     ST.restLeft--;
     if(ST.restLeft <= 0) {
       clearRest();
+      hideRestOverlay();
       onRestDone();
       return;
     }
-    // 逐秒播报
     speak(ST.restLeft);
     if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
@@ -242,9 +250,7 @@ function startRest(sec) {
 // 切换动作时播报
 function announceExercise(idx) {
   var ex = ST.workout.ex[idx];
-  var ed = exData(ex.eid);
-  var totalSets = ex.s;
-  speak("第" + (idx+1) + "个动作，" + ex.n + "，共" + totalSets + "组，每组" + ex.r + "次，休息" + ex.rest + "秒");
+  speak("第" + (idx+1) + "个动作，" + ex.n + "，共" + ex.s + "组，每组" + ex.r + "次");
 }
 
 function clearRest() {
@@ -258,18 +264,28 @@ function showRestTimer(sec) {
   a.querySelector("span").textContent = sec;
 }
 
-function onRestDone() {
+function hideRestOverlay() {
   var a = document.getElementById("rest-overlay");
-  if(a) { a.style.display = "none"; a.querySelector("span").textContent = ST.restLeft; }
+  if(a) a.style.display = "none";
   var flash = document.getElementById("rest-flash");
   if(flash) { flash.classList.add("flash"); setTimeout(function(){flash.classList.remove("flash");}, 2000); }
-  // 休息结束：判断是否完成所有组
+}
+
+function onRestDone() {
+  // 休息结束，自动进入下一组
   var ex = ST.workout.ex[ST.curEx];
-  if(ST.curSet >= ex.s - 1) {
+  if(ST.curSet >= ex.s) {
+    // 所有组完成了，跳到下一个动作
     doNextEx();
   } else {
+    // 还有组没做，渲染下一组
     renderWorkout();
   }
+}
+
+function finishWorkout() {
+  speak("训练完成");
+  doFinish();
 }
 
 window.doSkipRest = function() {
