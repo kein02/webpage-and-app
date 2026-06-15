@@ -19,25 +19,31 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-var speechTested = false;
+var speechReady = false;
 
-function testSpeech() {
-  if(!('speechSynthesis' in window)) return false;
-  var u = new SpeechSynthesisUtterance("测试");
+function unlockSpeech() {
+  if(speechReady) return;
+  if(!('speechSynthesis' in window)) return;
+  // iOS 要求：先 cancel 再 speak 才能解锁语音
+  window.speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance("a");
   u.lang = 'zh-CN';
-  u.onend = function() { speechTested = true; };
-  u.onerror = function() { speechTested = true; };
+  u.volume = 0;
+  u.onend = function() { speechReady = true; };
+  u.onerror = function() { speechReady = true; };
   window.speechSynthesis.speak(u);
-  return true;
+  // 延迟标记为就绪，等 utterance 真正触发
+  setTimeout(function() { speechReady = true; }, 500);
 }
 
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
-  // 首次使用先测试语音，绕过手机端静默限制
-  if(!speechTested) {
-    speechTested = true;
-    testSpeech();
+  unlockSpeech();
+  if(!speechReady) {
+    // 语音尚未解锁，延迟重试
+    setTimeout(function() { speak(text, cb); }, 100);
+    return;
   }
   window.speechSynthesis.cancel();
   var u = new SpeechSynthesisUtterance(text);
@@ -640,7 +646,11 @@ window.testVoiceBtn = function() {
   ST.soundOn = true;
   var btn = document.getElementById("sound-toggle");
   if(btn) btn.textContent = "🔊";
-  speak("测试语音，如果听到声音说明语音功能正常", null);
+  // 先触发 unlock，再播报
+  unlockSpeech();
+  setTimeout(function() {
+    speak("测试语音，如果听到声音说明语音功能正常", null);
+  }, 100);
 };
 
 window.clearData = function() {
