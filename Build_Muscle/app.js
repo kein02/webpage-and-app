@@ -20,81 +20,34 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
+// 移动端语音解锁：用户首次手势后播放一个短音，解锁 Android WebView 的语音引擎限制
 var voiceReady = false;
-var voiceQueue = [];
-
-function unlockVoice(onReady) {
-  if (voiceReady) { if(onReady) onReady(); return; }
-  if (!('speechSynthesis' in window)) { voiceReady = true; if(onReady) onReady(); return; }
-  var synth = window.speechSynthesis;
-
-  // 先设一个短超时触发，确保 onReady 一定能走到
-  var timer = setTimeout(function() {
-    voiceReady = true;
-    if(onReady) onReady();
-    // 播队列
-    drainQueue();
-  }, 300);
-
-  // 预播一个短语音解锁
+function unlockVoice() {
+  if (voiceReady || !('speechSynthesis' in window)) return;
+  voiceReady = true;
   try {
-    var u = new SpeechSynthesisUtterance('测');
+    var u = new SpeechSynthesisUtterance('增');
     u.lang = 'zh-CN';
     u.rate = 2;
-    u.pitch = 1;
-    u.volume = 0.01;
-    u.onend = function() {
-      clearTimeout(timer);
-      voiceReady = true;
-      if(onReady) onReady();
-      drainQueue();
-    };
-    u.onerror = function() {
-      clearTimeout(timer);
-      voiceReady = true;
-      if(onReady) onReady();
-      drainQueue();
-    };
-    synth.speak(u);
-  } catch(e) {
-    clearTimeout(timer);
-    voiceReady = true;
-    if(onReady) onReady();
-    drainQueue();
-  }
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+    window.speechSynthesis.cancel();
+  } catch(e) { /* ignore */ }
 }
-
-function drainQueue() {
-  var synth = window.speechSynthesis;
-  if(!synth) return;
-  while(voiceQueue.length > 0) {
-    var item = voiceQueue.shift();
-    var u = new SpeechSynthesisUtterance(item.text);
-    u.lang = 'zh-CN';
-    u.rate = 0.9;
-    u.pitch = 1;
-    u.onend = function() { if(item.cb) item.cb(); drainQueue(); };
-    u.onerror = function() { if(item.cb) item.cb(); drainQueue(); };
-    synth.speak(u);
-  }
-}
+window.unlockVoice = unlockVoice; // 暴露给 HTML onclick 直接调用
 
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
-
-  if(voiceReady) {
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-CN';
-    u.rate = 0.9;
-    u.pitch = 1;
-    u.onend = function() { if(cb) cb(); };
-    u.onerror = function() { if(cb) cb(); };
-    window.speechSynthesis.speak(u);
-  } else {
-    voiceQueue.push({ text: text, cb: cb });
-    unlockVoice();
-  }
+  // 确保先解锁
+  unlockVoice();
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  u.rate = 0.9;
+  u.pitch = 1;
+  u.onend = function() { if(cb) cb(); };
+  u.onerror = function() { if(cb) cb(); };
+  window.speechSynthesis.speak(u);
 }
 
 window.toggleSound = function() {
