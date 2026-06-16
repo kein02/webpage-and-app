@@ -337,24 +337,19 @@ function startRest(sec) {
   var nEl = document.getElementById("rt-num");
   speak("休息" + sec + "秒");
 
-  function tick() {
-    ST.restTimer = setTimeout(function() {
-      ST.restLeft--;
-      if(ST.restLeft <= 0) {
-        clearRest();
-        hideRestOverlay();
-        onRestDone();
-        return;
-      }
-      // 屏幕数字和语音同步播
-      if(nEl) nEl.textContent = ST.restLeft;
-      speak(ST.restLeft, function() {
-        // 语音播完再等下一秒
-        tick();
-      });
-    }, 1000);
-  }
-  tick();
+  ST.restTimer = setInterval(function() {
+    ST.restLeft--;
+    if(ST.restLeft <= 0) {
+      clearRest();
+      hideRestOverlay();
+      onRestDone();
+      return;
+    }
+    // 屏幕数字同步更新
+    if(nEl) nEl.textContent = ST.restLeft;
+    // 语音播报
+    speak(ST.restLeft);
+  }, 1000);
 }
 
 // 切换动作时播报
