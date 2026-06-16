@@ -20,17 +20,16 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-// 移动端语音解锁：用户首次点击时预播放一个静音片段，解锁 iOS/Android 语音引擎
 var voiceUnlocked = false;
 function unlockVoice() {
   if (voiceUnlocked || !('speechSynthesis' in window)) return;
   try {
-    var u = new SpeechSynthesisUtterance('');
+    var u = new SpeechSynthesisUtterance('增');
     u.lang = 'zh-CN';
-    u.rate = 1;
+    u.rate = 2;
+    u.pitch = 0;
     u.volume = 0;
     window.speechSynthesis.speak(u);
-    window.speechSynthesis.cancel();
     voiceUnlocked = true;
   } catch(e) { /* ignore */ }
 }
@@ -38,24 +37,25 @@ function unlockVoice() {
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
-  // 确保语音引擎已解锁
   unlockVoice();
-  // iOS 需要延迟一小段时间才能播
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if(isIOS) {
+  var isAndroid = /Android/.test(navigator.userAgent);
+  var delay = isIOS ? 200 : (isAndroid ? 100 : 0);
+  if(delay > 0) {
     setTimeout(function() {
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'zh-CN';
       u.rate = 0.9;
+      u.pitch = 1;
       u.onend = function() { if(cb) cb(); };
       u.onerror = function() { if(cb) cb(); };
       window.speechSynthesis.speak(u);
-    }, 150);
+    }, delay);
   } else {
-    window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
     u.rate = 0.9;
+    u.pitch = 1;
     u.onend = function() { if(cb) cb(); };
     u.onerror = function() { if(cb) cb(); };
     window.speechSynthesis.speak(u);
