@@ -346,6 +346,7 @@ function startRest(sec) {
 
 function startCountdown(sec) {
   var tickCount = 0;
+  var speaking = false; // 标记当前是否正在播语音
 
   ST.restTimer = setInterval(function() {
     tickCount++;
@@ -363,8 +364,12 @@ function startCountdown(sec) {
     if(nEl) nEl.textContent = ST.restLeft;
 
     // 每10秒播报一次 + 最后10秒每秒播报
-    if (tickCount % 10 === 0 || ST.restLeft <= 10) {
-      speak(String(ST.restLeft));
+    var shouldSpeak = tickCount % 10 === 0 || ST.restLeft <= 10;
+    if (shouldSpeak && !speaking) {
+      speaking = true;
+      speak(String(ST.restLeft), function() {
+        speaking = false;
+      });
     }
   }, 1000);
 }
@@ -377,6 +382,8 @@ function announceExercise(idx) {
 
 function clearRest() {
   if(ST.restTimer) { clearInterval(ST.restTimer); ST.restTimer = null; }
+  // 清语音 timer（用闭包变量）
+  if(ST._voiceTimer) { clearInterval(ST._voiceTimer); ST._voiceTimer = null; }
 }
 
 function showRestTimer(sec) {
