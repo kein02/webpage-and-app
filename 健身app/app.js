@@ -25,53 +25,77 @@ var voiceQueue = [];
 
 function unlockVoice(onReady) {
   if (voiceReady) { if(onReady) onReady(); return; }
-  if (!('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window)) { voiceReady = true; if(onReady) onReady(); return; }
   var synth = window.speechSynthesis;
-  // 小米/Android WebView 需要等待 voiceschanged
-  var handler = function() {
-    synth.removeEventListener('voiceschanged', handler);
-    // 预播一个真实语音解锁
+
+  // 先设一个短超时触发，确保 onReady 一定能走到
+  var timer = setTimeout(function() {
+    voiceReady = true;
+    if(onReady) onReady();
+    // 播队列
+    drainQueue();
+  }, 300);
+
+  // 预播一个短语音解锁
+  try {
     var u = new SpeechSynthesisUtterance('测');
     u.lang = 'zh-CN';
-    u.rate = 1.5;
+    u.rate = 2;
     u.pitch = 1;
     u.volume = 0.01;
-    u.onend = function() { voiceReady = true; if(onReady) onReady(); };
-    u.onerror = function() { voiceReady = true; if(onReady) onReady(); };
+    u.onend = function() {
+      clearTimeout(timer);
+      voiceReady = true;
+      if(onReady) onReady();
+      drainQueue();
+    };
+    u.onerror = function() {
+      clearTimeout(timer);
+      voiceReady = true;
+      if(onReady) onReady();
+      drainQueue();
+    };
     synth.speak(u);
-  };
-  synth.addEventListener('voiceschanged', handler);
-  // 兜底：500ms 后强制认为就绪
-  setTimeout(function() { if(!voiceReady) { voiceReady = true; if(onReady) onReady(); } }, 500);
+  } catch(e) {
+    clearTimeout(timer);
+    voiceReady = true;
+    if(onReady) onReady();
+    drainQueue();
+  }
+}
+
+function drainQueue() {
+  var synth = window.speechSynthesis;
+  if(!synth) return;
+  while(voiceQueue.length > 0) {
+    var item = voiceQueue.shift();
+    var u = new SpeechSynthesisUtterance(item.text);
+    u.lang = 'zh-CN';
+    u.rate = 0.9;
+    u.pitch = 1;
+    u.onend = function() { if(item.cb) item.cb(); drainQueue(); };
+    u.onerror = function() { if(item.cb) item.cb(); drainQueue(); };
+    synth.speak(u);
+  }
 }
 
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
 
-  // 先解锁，就绪后再播
-  unlockVoice(function() {
-    // 播队列里积压的消息
+  if(voiceReady) {
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
     u.rate = 0.9;
     u.pitch = 1;
-    u.onend = function() {
-      if(cb) cb();
-      // 播队列里下一条
-      if(voiceQueue.length > 0) speak(voiceQueue.shift(), null);
-    };
-    u.onerror = function() {
-      if(cb) cb();
-      if(voiceQueue.length > 0) speak(voiceQueue.shift(), null);
-    };
+    u.onend = function() { if(cb) cb(); };
+    u.onerror = function() { if(cb) cb(); };
     window.speechSynthesis.speak(u);
-  });
+  } else {
+    voiceQueue.push({ text: text, cb: cb });
+    unlockVoice();
+  }
 }
-
-// 首次交互时预触发解锁
-document.addEventListener('touchstart', function() { unlockVoice(); }, { once: true });
-document.addEventListener('click', function() { unlockVoice(); }, { once: true });
 
 window.toggleSound = function() {
   ST.soundOn = !ST.soundOn;
