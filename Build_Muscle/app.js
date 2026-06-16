@@ -20,21 +20,11 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-// 移动端语音解锁：用户首次手势后播放一个短音，解锁 Android WebView 的语音引擎限制
-var voiceReady = false;
+var voiceEnabled = false;
 function unlockVoice() {
-  if (voiceReady || !('speechSynthesis' in window)) return;
-  voiceReady = true;
-  try {
-    var u = new SpeechSynthesisUtterance('增');
-    u.lang = 'zh-CN';
-    u.rate = 2;
-    u.volume = 0;
-    window.speechSynthesis.speak(u);
-    window.speechSynthesis.cancel();
-  } catch(e) { /* ignore */ }
+  if (voiceEnabled || !('speechSynthesis' in window)) return;
+  voiceEnabled = true;
 }
-window.unlockVoice = unlockVoice; // 暴露给 HTML onclick 直接调用
 
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
