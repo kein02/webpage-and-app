@@ -20,31 +20,61 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-var voiceEnabled = false;
-function unlockVoice() {
-  if (voiceEnabled || !('speechSynthesis' in window)) return;
-  voiceEnabled = true;
-}
+// 双方案：speechSynthesis (电脑/Edge/iOS) + AudioContext 合成提示音 (小米/QQ/夸克)
+var synthSupported = 'speechSynthesis' in window;
+var audioCtxSupported = 'AudioContext' in window || 'webkitAudioContext' in window;
 
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
-  if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
-  // 确保先解锁
-  unlockVoice();
-  var u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN';
-  u.rate = 0.9;
-  u.pitch = 1;
-  u.onend = function() { if(cb) cb(); };
-  u.onerror = function() { if(cb) cb(); };
-  window.speechSynthesis.speak(u);
+  if(!synthSupported) return cb ? cb() : void 0;
+
+  // 先尝试 speechSynthesis
+  try {
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 0.9;
+    u.pitch = 1;
+    u.onend = function() { if(cb) cb(); };
+    u.onerror = function() {
+      // speechSynthesis 失败，降级到 AudioContext 提示音
+      playBeep();
+      if(cb) cb();
+    };
+    window.speechSynthesis.speak(u);
+  } catch(e) {
+    playBeep();
+    if(cb) cb();
+  }
+}
+
+function playBeep(freq, duration) {
+  if(!audioCtxSupported) return;
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq || 880;
+    osc.type = 'sine';
+    gain.gain.value = 0.3;
+    osc.start();
+    setTimeout(function() {
+      osc.stop();
+      ctx.close();
+    }, duration || 150);
+  } catch(e) { /* ignore */ }
+}
+
+function clearAllVoice() {
+  if(synthSupported) window.speechSynthesis.cancel();
 }
 
 window.toggleSound = function() {
   ST.soundOn = !ST.soundOn;
   var btn = document.getElementById("sound-toggle");
   if(btn) btn.textContent = ST.soundOn ? "🔊" : "🔇";
-  if(!ST.soundOn) window.speechSynthesis.cancel();
+  if(!ST.soundOn) clearAllVoice();
 };
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 function mgTagHTML(mg) {
@@ -314,6 +344,7 @@ function startRest(sec) {
       onRestDone();
       return;
     }
+    // 每秒播报数字
     speak(ST.restLeft);
     if(nEl) nEl.textContent = ST.restLeft;
   }, 1000);
@@ -364,6 +395,7 @@ function finishWorkout() {
 
 window.doSkipRest = function() {
   clearRest();
+  clearAllVoice();
   var a = document.getElementById("rest-overlay");
   if(a) a.style.display = "none";
 };
@@ -724,7 +756,10 @@ window.testVoiceBtn = function() {
   ST.soundOn = true;
   var btn = document.getElementById("sound-toggle");
   if(btn) btn.textContent = "🔊";
-  speak("测试语音，如果听到声音说明语音功能正常", null);
+  // 先播语音，失败后自动 fallback 到提示音
+  speak("测试语音", function() {
+    playBeep(1000, 300);
+  });
 };
 
 window.clearData = function() {
