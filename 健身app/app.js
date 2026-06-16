@@ -20,17 +20,51 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
+// 移动端语音解锁：用户首次点击时预播放一个静音片段，解锁 iOS/Android 语音引擎
+var voiceUnlocked = false;
+function unlockVoice() {
+  if (voiceUnlocked || !('speechSynthesis' in window)) return;
+  try {
+    var u = new SpeechSynthesisUtterance('');
+    u.lang = 'zh-CN';
+    u.rate = 1;
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+    window.speechSynthesis.cancel();
+    voiceUnlocked = true;
+  } catch(e) { /* ignore */ }
+}
+
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
-  window.speechSynthesis.cancel();
-  var u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN';
-  u.rate = 0.9;
-  u.onend = function() { if(cb) cb(); };
-  u.onerror = function() { if(cb) cb(); };
-  window.speechSynthesis.speak(u);
+  // 确保语音引擎已解锁
+  unlockVoice();
+  // iOS 需要延迟一小段时间才能播
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(isIOS) {
+    setTimeout(function() {
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'zh-CN';
+      u.rate = 0.9;
+      u.onend = function() { if(cb) cb(); };
+      u.onerror = function() { if(cb) cb(); };
+      window.speechSynthesis.speak(u);
+    }, 150);
+  } else {
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 0.9;
+    u.onend = function() { if(cb) cb(); };
+    u.onerror = function() { if(cb) cb(); };
+    window.speechSynthesis.speak(u);
+  }
 }
+
+// 全局解锁：首次点击/触摸页面时解锁语音
+document.addEventListener('touchstart', unlockVoice, { once: true });
+document.addEventListener('click', unlockVoice, { once: true });
 
 window.toggleSound = function() {
   ST.soundOn = !ST.soundOn;
@@ -138,7 +172,7 @@ function renderPlan() {
     if(acts) {
       var kneeOn = ST.settings.knee !== false;
       var wristOn = ST.wristOn !== false;
-      var mode = (!kneeOn && !wristOn) ? "自由组合" : (kneeOn && wristOn ? "双保护" : (kneeOn ? "护腕" : "护膝"));
+      var mode = (!kneeOn && !wristOn) ? "自由组合" : (kneeOn && wristOn ? "双保护" : (kneeOn ? "护膝" : "护腕"));
       name += ' <span style="font-size:11px;color:var(--text2)">(' + mode + ')</span>';
     }
     html += '<div class="day-row' + (isToday?' day-today':'') + '">';
