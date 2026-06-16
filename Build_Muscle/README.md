@@ -29,6 +29,6 @@
 
 ## 快速开始
 
-1. 浏览器打开：https://kein02.github.io/webpage-and-app/%E5%81%A5%E8%BA%ABapp/
+1. 浏览器打开：https://kein02.github.io/webpage-and-app/Build_Muscle/
 2. 填写个人资料 → 开始今日训练
 3. 浏览动作库了解每个动作的详细指导
