@@ -335,21 +335,30 @@ function startRest(sec) {
   ST.restLeft = sec;
   showRestTimer(sec);
   var nEl = document.getElementById("rt-num");
-  speak("休息" + sec + "秒");
 
-  ST.restTimer = setInterval(function() {
-    ST.restLeft--;
-    if(ST.restLeft <= 0) {
-      clearRest();
-      hideRestOverlay();
-      onRestDone();
-      return;
-    }
-    // 屏幕数字同步更新
-    if(nEl) nEl.textContent = ST.restLeft;
-    // 语音播报
-    speak(ST.restLeft);
-  }, 1000);
+  // 开始休息前播报
+  speak("休息" + sec + "秒", function() {
+    // 语音播完再开始倒计时，确保同步
+    nEl.textContent = sec;
+
+    ST.restTimer = setInterval(function() {
+      ST.restLeft--;
+      if(ST.restLeft <= 0) {
+        clearRest();
+        hideRestOverlay();
+        onRestDone();
+        return;
+      }
+      // 屏幕数字同步更新
+      if(nEl) nEl.textContent = ST.restLeft;
+
+      // 每10秒播报 + 最后10秒每秒播报
+      var shouldSpeak = (sec - ST.restLeft) % 10 === 0 && ST.restLeft > 0; // 第10、20、30...秒
+      if (shouldSpeak || ST.restLeft <= 10) {
+        speak(ST.restLeft);
+      }
+    }, 1000);
+  });
 }
 
 // 切换动作时播报
