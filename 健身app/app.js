@@ -20,51 +20,58 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-var voiceUnlocked = false;
-function unlockVoice() {
-  if (voiceUnlocked || !('speechSynthesis' in window)) return;
-  try {
-    var u = new SpeechSynthesisUtterance('增');
+var voiceReady = false;
+var voiceQueue = [];
+
+function unlockVoice(onReady) {
+  if (voiceReady) { if(onReady) onReady(); return; }
+  if (!('speechSynthesis' in window)) return;
+  var synth = window.speechSynthesis;
+  // 小米/Android WebView 需要等待 voiceschanged
+  var handler = function() {
+    synth.removeEventListener('voiceschanged', handler);
+    // 预播一个真实语音解锁
+    var u = new SpeechSynthesisUtterance('测');
     u.lang = 'zh-CN';
-    u.rate = 2;
-    u.pitch = 0;
-    u.volume = 0;
-    window.speechSynthesis.speak(u);
-    voiceUnlocked = true;
-  } catch(e) { /* ignore */ }
+    u.rate = 1.5;
+    u.pitch = 1;
+    u.volume = 0.01;
+    u.onend = function() { voiceReady = true; if(onReady) onReady(); };
+    u.onerror = function() { voiceReady = true; if(onReady) onReady(); };
+    synth.speak(u);
+  };
+  synth.addEventListener('voiceschanged', handler);
+  // 兜底：500ms 后强制认为就绪
+  setTimeout(function() { if(!voiceReady) { voiceReady = true; if(onReady) onReady(); } }, 500);
 }
 
 function speak(text, cb) {
   if(!ST.soundOn) return cb ? cb() : void 0;
   if(!('speechSynthesis' in window)) return cb ? cb() : void 0;
-  unlockVoice();
-  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  var isAndroid = /Android/.test(navigator.userAgent);
-  var delay = isIOS ? 200 : (isAndroid ? 100 : 0);
-  if(delay > 0) {
-    setTimeout(function() {
-      var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'zh-CN';
-      u.rate = 0.9;
-      u.pitch = 1;
-      u.onend = function() { if(cb) cb(); };
-      u.onerror = function() { if(cb) cb(); };
-      window.speechSynthesis.speak(u);
-    }, delay);
-  } else {
+
+  // 先解锁，就绪后再播
+  unlockVoice(function() {
+    // 播队列里积压的消息
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
     u.rate = 0.9;
     u.pitch = 1;
-    u.onend = function() { if(cb) cb(); };
-    u.onerror = function() { if(cb) cb(); };
+    u.onend = function() {
+      if(cb) cb();
+      // 播队列里下一条
+      if(voiceQueue.length > 0) speak(voiceQueue.shift(), null);
+    };
+    u.onerror = function() {
+      if(cb) cb();
+      if(voiceQueue.length > 0) speak(voiceQueue.shift(), null);
+    };
     window.speechSynthesis.speak(u);
-  }
+  });
 }
 
-// 全局解锁：首次点击/触摸页面时解锁语音
-document.addEventListener('touchstart', unlockVoice, { once: true });
-document.addEventListener('click', unlockVoice, { once: true });
+// 首次交互时预触发解锁
+document.addEventListener('touchstart', function() { unlockVoice(); }, { once: true });
+document.addEventListener('click', function() { unlockVoice(); }, { once: true });
 
 window.toggleSound = function() {
   ST.soundOn = !ST.soundOn;
