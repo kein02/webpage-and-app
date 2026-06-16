@@ -336,18 +336,25 @@ function startRest(sec) {
   showRestTimer(sec);
   var nEl = document.getElementById("rt-num");
   speak("休息" + sec + "秒");
-  ST.restTimer = setInterval(function() {
-    ST.restLeft--;
-    if(ST.restLeft <= 0) {
-      clearRest();
-      hideRestOverlay();
-      onRestDone();
-      return;
-    }
-    // 每秒播报数字
-    speak(ST.restLeft);
-    if(nEl) nEl.textContent = ST.restLeft;
-  }, 1000);
+
+  function tick() {
+    ST.restTimer = setTimeout(function() {
+      ST.restLeft--;
+      if(ST.restLeft <= 0) {
+        clearRest();
+        hideRestOverlay();
+        onRestDone();
+        return;
+      }
+      // 屏幕数字和语音同步播
+      if(nEl) nEl.textContent = ST.restLeft;
+      speak(ST.restLeft, function() {
+        // 语音播完再等下一秒
+        tick();
+      });
+    }, 1000);
+  }
+  tick();
 }
 
 // 切换动作时播报
