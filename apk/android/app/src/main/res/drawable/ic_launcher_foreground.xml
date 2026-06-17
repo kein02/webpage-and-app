@@ -1,0 +1,51 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <!-- Head -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M54,14 A8,8 0 1,1 54,30 A8,8 0 1,1 54,14"/>
+  <!-- Neck -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M50,30 L50,36 L58,36 L58,30 Z"/>
+  <!-- Torso outline -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M38,38 Q42,38 44,42 L44,50 L48,50 L48,42 L54,42 L54,50 L58,50 L58,42 L64,42 L64,50 L68,50 L68,42 L70,38 Q66,36 64,38 L60,42 L54,42 L48,42 L44,42 Z"/>
+  <!-- Chest lines -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M54,42 L54,56"/>
+  <!-- Abs lines -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M46,58 L62,58"/>
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M47,62 L61,62"/>
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M48,66 L60,66"/>
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M50,70 L58,70"/>
+  <!-- Left arm -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M38,38 Q32,42 28,50 L28,56 L32,56 L32,50 Q35,44 40,42 Z"/>
+  <!-- Right arm -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M70,38 Q76,42 80,50 L80,56 L76,56 L76,50 Q73,44 68,42 Z"/>
+  <!-- Barbell bar -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M18,48 L90,48"/>
+  <!-- Left weight plates -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M14,40 L18,40 L18,56 L14,56 Z"/>
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M10,42 L14,42 L14,54 L10,54 Z"/>
+  <!-- Right weight plates -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M90,40 L94,40 L94,56 L90,56 Z"/>
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M94,42 L98,42 L98,54 L94,54 Z"/>
+  <!-- Hands gripping bar -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M26,46 L30,46 L30,52 L26,52 Z"/>
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M78,46 L82,46 L82,52 L78,52 Z"/>
+</vector>

@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#0a0e17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>增肌助手 · 居家健身</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>增肌<span>助手</span></h1>
+    <button id="sound-toggle" class="sound-btn" onclick="toggleSound()" title="声音开关">🔊</button>
+  </div>
+  <div class="views">
+    <!-- PLAN VIEW -->
+    <div id="view-plan" class="view active">
+      <div id="plan-list"></div>
+    </div>
+    <!-- WORKOUT VIEW -->
+    <div id="view-workout" class="view">
+      <div id="workout-content"></div>
+    </div>
+    <!-- EXERCISE LIBRARY VIEW -->
+    <div id="view-exercise" class="view">
+      <div id="ex-list"></div>
+    </div>
+    <!-- EXERCISE DETAIL VIEW -->
+    <div id="view-ex-detail" class="view">
+      <div id="ex-detail-container"></div>
+    </div>
+    <!-- PROGRESS VIEW -->
+    <div id="view-progress" class="view">
+      <div id="progress-content"></div>
+    </div>
+    <!-- SETTINGS VIEW -->
+    <div id="view-settings" class="view">
+      <div id="settings-content"></div>
+    </div>
+  </div>
+
+  <!-- Rest timer overlay -->
+  <div id="rest-overlay">
+    <span id="rt-num">60</span>
+    <p>秒后继续</p>
+    <button class="skip-btn" onclick="doSkipRest()">跳过休息</button>
+  </div>
+
+  <!-- Flash notification -->
+  <div id="rest-flash">休息完成！继续训练</div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-plan" onclick="navigateTo('plan')">
+      <span class="n-icon">📋</span>
+      <span>计划</span>
+    </button>
+    <button class="nav-item" id="nav-workout" onclick="navigateTo('workout')" style="display:none">
+      <span class="n-icon">🏋️</span>
+      <span>训练中</span>
+    </button>
+    <button class="nav-item" id="nav-exercise" onclick="navigateTo('exercise')">
+      <span class="n-icon">📖</span>
+      <span>动作库</span>
+    </button>
+    <button class="nav-item" id="nav-progress" onclick="navigateTo('progress')">
+      <span class="n-icon">📊</span>
+      <span>进度</span>
+    </button>
+    <button class="nav-item" id="nav-settings" onclick="navigateTo('settings')">
+      <span class="n-icon">⚙️</span>
+      <span>设置</span>
+    </button>
+  </nav>
+</div>
+
+<script src="data.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+<script>init();</script>
+</body>
+</html>

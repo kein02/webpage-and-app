@@ -382,6 +382,8 @@ function announceExercise(idx) {
 
 function clearRest() {
   if(ST.restTimer) { clearInterval(ST.restTimer); ST.restTimer = null; }
+  // 清语音 timer（用闭包变量）
+  if(ST._voiceTimer) { clearInterval(ST._voiceTimer); ST._voiceTimer = null; }
 }
 
 function showRestTimer(sec) {
