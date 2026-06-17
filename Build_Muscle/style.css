@@ -191,3 +191,9 @@ body{overflow:hidden}
 .nav-item .n-icon{font-size:20px;margin-bottom:2px}
 .nav-item.active{color:var(--accent)}
 .nav-item.active .n-icon{font-size:22px}
+
+/* PWA: Install banner */
+@keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+
+/* PWA: Online indicator */
+#online-indicator{position:fixed;top:60px;right:12px;background:var(--bg3);color:#fff;padding:4px 10px;border-radius:12px;font-size:11px;z-index:999;display:none;align-items:center;gap:4px}
