@@ -20,31 +20,110 @@ function mgColor(mg) { return DATA.COLORS[mg] || "#4d96ff"; }
 function dayRest(s) { if(s<=30) return "快休"; if(s<=45) return "中休"; return s+"秒"; }
 
 // ====== VOICE ======
-// 双方案：speechSynthesis (电脑/Edge/iOS) + AudioContext 合成提示音 (小米/QQ/夸克)
-var synthSupported = 'speechSynthesis' in window;
+// 蜂鸣提示音系统：不同场景不同频率和次数
 var audioCtxSupported = 'AudioContext' in window || 'webkitAudioContext' in window;
+var _voiceCtx = null;
 
-function speak(text, cb) {
-  if(!ST.soundOn) return cb ? cb() : void 0;
-  if(!synthSupported) return cb ? cb() : void 0;
-
-  // 先尝试 speechSynthesis
-  try {
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-CN';
-    u.rate = 0.9;
-    u.pitch = 1;
-    u.onend = function() { if(cb) cb(); };
-    u.onerror = function() {
-      // speechSynthesis 失败，降级到 AudioContext 提示音
-      playBeep();
-      if(cb) cb();
-    };
-    window.speechSynthesis.speak(u);
-  } catch(e) {
-    playBeep();
-    if(cb) cb();
+// 获取复用 AudioContext
+function getVoiceCtx() {
+  if (!_voiceCtx) {
+    try { _voiceCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { return null; }
   }
+  if (_voiceCtx.state === 'suspended') _voiceCtx.resume();
+  return _voiceCtx;
+}
+
+// 核心：播放指定频率的蜂鸣
+function beep(freq, duration, type) {
+  var ctx = getVoiceCtx();
+  if (!ctx) return;
+  try {
+    var now = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    gain.gain.value = 0.3;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration / 1000);
+  } catch(e) {}
+}
+
+// 场景蜂鸣模式
+var BEEPS = {
+  // 开始训练：2 声高（哒哒）
+  start:       { freqs: [880, 880],    gaps: [150, 150], types: ['square', 'square'] },
+  // 组间休息：3 声中（哒哒哒）
+  restStart:   { freqs: [660, 660, 660], gaps: [120, 120, 150], types: ['sine', 'sine', 'sine'] },
+  // 倒计时播报：1 声短
+  countdown:   { freqs: [1000],         gaps: [150], types: ['square'] },
+  // 休息结束：3 声渐高（哒哒哒——）
+  restEnd:     { freqs: [660, 880, 1100], gaps: [120, 120, 150], types: ['square', 'square', 'square'] },
+  // 动作切换：2 声一高一低（嘀哒）
+  switchEx:    { freqs: [1100, 660],    gaps: [150, 150], types: ['square', 'square'] },
+  // 完成训练：4 声渐高（哒哒哒哒——）
+  finish:      { freqs: [660, 880, 1100, 1320], gaps: [100, 100, 100, 150], types: ['square', 'square', 'square', 'square'] },
+  // 通用确认：1 声
+  click:       { freqs: [880],          gaps: [120], types: ['square'] },
+  // 测试语音：2 声
+  test:        { freqs: [880, 1100],    gaps: [150, 150], types: ['square', 'square'] },
+};
+
+function playPattern(name) {
+  var p = BEEPS[name];
+  if (!p) return;
+  var ctx = getVoiceCtx();
+  if (!ctx) return;
+  try {
+    var now = ctx.currentTime;
+    for (var i = 0; i < p.freqs.length; i++) {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = p.types[i] || 'square';
+      osc.frequency.value = p.freqs[i];
+      gain.gain.value = 0.3;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+      now += 0.12 + p.gaps[i] / 1000;
+    }
+  } catch(e) {}
+}
+
+// speak 包装：直接播放蜂鸣
+function speak(text, cb) {
+  if (!ST.soundOn) { if(cb) cb(); return; }
+  if (!text) { if(cb) cb(); return; }
+
+  // 判断播报类型，选择对应蜂鸣模式
+  var pattern = 'click';
+  var t = text.toLowerCase();
+
+  if (t.indexOf('开始训练') === 0 || t.indexOf('开始') === 0) {
+    pattern = 'start';
+  } else if (t.indexOf('休息') === 0 || t.indexOf('秒') === text) {
+    // "休息XX秒" 或纯数字倒计时
+    if (text.indexOf('休息') === 0) {
+      pattern = 'restStart';
+    } else {
+      pattern = 'countdown';
+    }
+  } else if (t.indexOf('休息结束') === 0) {
+    pattern = 'restEnd';
+  } else if (t.indexOf('第') === 0 && t.indexOf('个动作') !== -1) {
+    pattern = 'switchEx';
+  } else if (t.indexOf('训练完成') === 0 || t.indexOf('完成') === 0) {
+    pattern = 'finish';
+  } else if (t.indexOf('测试') === 0) {
+    pattern = 'test';
+  }
+
+  playPattern(pattern);
+  if (cb) setTimeout(cb, 400);
 }
 
 function playBeep(freq, duration) {
@@ -67,7 +146,11 @@ function playBeep(freq, duration) {
 }
 
 function clearAllVoice() {
-  if(synthSupported) window.speechSynthesis.cancel();
+  // 清空 AudioContext（停止所有正在播放的蜂鸣）
+  if (_voiceCtx) {
+    try { _voiceCtx.close(); } catch(e) {}
+    _voiceCtx = null;
+  }
 }
 
 window.toggleSound = function() {
@@ -716,6 +799,12 @@ function renderSettings() {
   html += '<p class="s-help">训练时自动播报动作信息</p>';
   html += '<div class="s-row"><button class="btn-save" style="width:100%;margin:0" onclick="testVoiceBtn()">🔊 点击测试语音</button></div>';
   html += '<p class="s-help" style="margin-top:4px">如果没声音，请检查手机音量是否打开</p>';
+  html += '<div id="voice-diag" style="margin-top:12px;padding:10px;background:#0a0e17;border-radius:8px;font-size:12px;line-height:2;color:#8892a0;">';
+  html += '<strong style="color:#ccd6e0">语音诊断：</strong><br>';
+  html += '蜂鸣方案: <span id="voice-current-engine">场景化频率+次数区分</span><br>';
+  html += 'AudioContext: ' + (audioCtxSupported ? '✅ 支持' : '❌ 不支持');
+  html += '<br><span style="color:#666">哒哒=开始训练 | 哒哒哒=休息 | 嘀嘀嘀=休息结束</span>';
+  html += '</div>';
   html += '</div>';
 
   html += '<div class="card">';
@@ -734,7 +823,12 @@ function renderSettings() {
 
   c.innerHTML = html;
 
-  // Load saved settings
+  // 语音诊断信息
+  (function showVoiceDiag() {
+    // HTML 模板已渲染，无需 JS 填充
+  })();
+
+  // 加载保存的设置
   DB.getSettings().then(function(saved) {
     SETTINGS_FIELDS.forEach(function(f) {
       var el = document.getElementById(f.id);
@@ -782,10 +876,10 @@ window.testVoiceBtn = function() {
   ST.soundOn = true;
   var btn = document.getElementById("sound-toggle");
   if(btn) btn.textContent = "🔊";
-  // 先播语音，失败后自动 fallback 到提示音
-  speak("测试语音", function() {
-    playBeep(1000, 300);
-  });
+  // 唤醒 AudioContext
+  var ctx = getVoiceCtx();
+  if (ctx) ctx.resume();
+  speak("测试语音");
 };
 
 window.clearData = function() {
@@ -799,6 +893,20 @@ window.clearData = function() {
 function init() {
   ST.filter = "all";
   ST.wristOn = true;
+
+  // 首次触摸/点击时唤醒 AudioContext
+  function onFirstInteraction() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      ctx.close();
+    } catch(e) {}
+    document.removeEventListener('touchstart', onFirstInteraction);
+    document.removeEventListener('click', onFirstInteraction);
+  }
+  document.addEventListener('touchstart', onFirstInteraction, { passive: true });
+  document.addEventListener('click', onFirstInteraction, { passive: true });
+
   DB.getSettings().then(function(saved) {
     Object.keys(saved).forEach(function(k){ ST.settings[k]=saved[k]; });
     if(saved.wrist !== undefined) ST.wristOn = saved.wrist;
