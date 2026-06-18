@@ -107,21 +107,19 @@ var installPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   installPrompt = e;
-  if (!localStorage.getItem('install-dismissed')) {
-    document.getElementById('install-banner').style.display = 'block';
-  }
+  showInstallBanner();
 });
 
 // 兼容：如果 beforeinstallprompt 没触发（国产 WebView），直接显示引导
-setTimeout(function() {
-  if (!installPrompt && !localStorage.getItem('install-dismissed')) {
-    document.getElementById('install-banner').style.display = 'block';
-    // 3秒后自动消失
-    setTimeout(function() {
-      document.getElementById('install-banner').style.display = 'none';
-    }, 3000);
-  }
-}, 2000);
+setTimeout(showInstallBanner, 2000);
+
+function showInstallBanner() {
+  document.getElementById('install-banner').style.display = 'block';
+  // 3秒后自动消失
+  setTimeout(function() {
+    document.getElementById('install-banner').style.display = 'none';
+  }, 3000);
+}
 
 window.doInstall = function() {
   if (installPrompt) {
@@ -141,7 +139,6 @@ window.doInstall = function() {
 
 window.dismissInstall = function() {
   document.getElementById('install-banner').style.display = 'none';
-  localStorage.setItem('install-dismissed', '1');
 };
 
 // ====== PWA: 离线状态指示 ======
