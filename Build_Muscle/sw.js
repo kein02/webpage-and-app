@@ -11,15 +11,21 @@ var ASSETS = [
   'data.js',
   'db.js',
   'manifest.json',
-  'icon-192.png',
-  'icon-512.png'
+  'icon.svg'
 ];
 
-// 安装：预缓存所有静态资源
+// 安装：预缓存所有静态资源（容错：单个文件失败不影响整体）
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(ASSETS);
+      return Promise.allSettled(
+        ASSETS.map(function(url) {
+          return cache.add(url).catch(function(err) {
+            console.warn('[SW] 缓存失败:', url, err.message);
+            return null;
+          });
+        })
+      );
     })
   );
   // 跳过等待，立即激活

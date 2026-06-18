@@ -105,7 +105,7 @@ function speak(text, cb) {
 
   if (t.indexOf('开始训练') === 0 || t.indexOf('开始') === 0) {
     pattern = 'start';
-  } else if (t.indexOf('休息') === 0 || t.indexOf('秒') === text) {
+  } else if (t.indexOf('休息') === 0 || t.indexOf('秒') !== -1) {
     // "休息XX秒" 或纯数字倒计时
     if (text.indexOf('休息') === 0) {
       pattern = 'restStart';

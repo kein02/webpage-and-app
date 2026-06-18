@@ -8,6 +8,7 @@ body{overflow:hidden}
 .header{padding:16px 20px 12px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
 .header h1{font-size:20px;font-weight:700;letter-spacing:1px}
 .header h1 span{color:var(--accent);font-weight:400}
+.header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 
 /* Sound toggle */
 .sound-btn{width:32px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -196,4 +197,4 @@ body{overflow:hidden}
 @keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
 
 /* PWA: Online indicator */
-#online-indicator{position:fixed;top:60px;right:12px;background:var(--bg3);color:#fff;padding:4px 10px;border-radius:12px;font-size:11px;z-index:999;display:none;align-items:center;gap:4px}
+#online-indicator{position:fixed;top:60px;right:12px;background:var(--bg3);color:#fff;padding:4px 10px;border-radius:12px;font-size:11px;z-index:999;display:flex;align-items:center;gap:4px}
