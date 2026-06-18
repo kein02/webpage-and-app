@@ -2,7 +2,7 @@
 // 缓存策略：Cache First（静态资源）+ Network First（数据请求）
 // 离线后可正常使用全部功能，数据存储在 IndexedDB 中不受影响
 
-var CACHE_NAME = 'muscle-helper-v1';
+var CACHE_NAME = 'muscle-helper-v2';
 var ASSETS = [
   './',
   'index.html',
