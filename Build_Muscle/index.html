@@ -103,15 +103,24 @@ if ('serviceWorker' in navigator) {
 
 // ====== PWA: 安装提示 ======
 var installPrompt = null;
+var bannerShown = false; // 标记本次页面生命周期内是否已显示过
 
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   installPrompt = e;
-  showInstallBanner();
+  if (!bannerShown) {
+    bannerShown = true;
+    showInstallBanner();
+  }
 });
 
-// 兼容：如果 beforeinstallprompt 没触发（国产 WebView），直接显示引导
-setTimeout(showInstallBanner, 2000);
+// 兜底：不管 beforeinstallprompt 是否触发，页面加载后 2 秒都显示
+setTimeout(function() {
+  if (!bannerShown) {
+    bannerShown = true;
+    showInstallBanner();
+  }
+}, 2000);
 
 function showInstallBanner() {
   document.getElementById('install-banner').style.display = 'block';
