@@ -9,7 +9,10 @@
 │   ├── style.css       # 样式
 │   ├── app.js          # 业务逻辑（路由、状态管理、UI 渲染）
 │   ├── data.js         # 动作库数据（70+ 动作）和训练计划
-│   └── db.js           # IndexedDB 封装
+│   ├── db.js           # IndexedDB 封装
+│   ├── sw.js           # Service Worker（PWA 离线缓存）
+│   ├── manifest.json   # PWA 元数据
+│   └── icon.svg        # PWA 图标
 ├── apk/                # Android APK 打包版本（Capacitor）
 │   ├── www/            # Web 源码（与 Build_Muscle/ 同源）
 │   ├── android/        # Android 原生项目
@@ -22,13 +25,14 @@
 ## 硬边界规则
 
 - **Web 版代码在 `Build_Muscle/` 内**，不要在此目录外新建功能文件
-- **APK 版代码在 `apk/www/` 内**，与 Build_Muscle/ 保持同步
+- **APK 版代码在 `apk/www/` 内**，不与 Build_Muscle/ 保持同步
 - **纯前端，无构建工具，无框架** — 不引入 webpack/vite/bundler
 - **Web 版数据存储用 IndexedDB**（`db.js` 封装）
 - **APK 版数据存储用 localStorage**（`apk/www/db.js`），IndexedDB 在 Capacitor WebView 中不可靠
 - **GitHub Pages 部署**：仓库 `kein02/webpage-and-app`，`gh-pages` 分支
 - **部署地址**：`https://kein02.github.io/webpage-and-app/Build_Muscle/`
 - **APK 构建**：`cd apk/android && ./gradlew assembleDebug`，输出 `apk/android/app/build/outputs/apk/debug/Build-Muscle.apk`
+- **PWA 缓存**：`sw.js` 的 `CACHE_NAME` 版本号变更时才会触发新用户 SW 更新，老用户需清除缓存或等 `updatefound` 弹窗提示
 
 ## 代码约定
 
