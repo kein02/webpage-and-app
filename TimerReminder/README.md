@@ -8,7 +8,7 @@
 | 包名 | `com.example.timereminder` |
 | 支持系统 | Android 8.0+（API 26） |
 | 技术栈 | Kotlin + Jetpack Compose + AlarmManager（setAlarmClock）+ 前台服务 |
-| 正式包下载 | `release/TimerReminder-1.0.0-release.apk`（或 GitHub Releases） |
+| 正式包下载 | `release/TimerReminder.apk`（或 GitHub Releases） |
 
 ---
 
@@ -39,7 +39,7 @@
 ## 二、安装与使用说明
 
 ### 1. 安装
-把 `release/TimerReminder-1.0.0-release.apk` 传到手机点开安装（首次需允许"安装未知来源应用"）。支持 **Android 8.0 及以上**。
+把 `release/TimerReminder.apk` 传到手机点开安装（首次需允许"安装未知来源应用"）。支持 **Android 8.0 及以上**。
 
 ### 2. 第一次使用：先授权（关键！）
 打开 App，按顶部「**需要授权**」卡片逐项处理（或点右上角「使用说明」）：
@@ -87,7 +87,7 @@ Reasonix/
 │   ├── index.html           # 双击即可测试
 │   └── README.md
 ├── release/                 # 发布 APK（正式版）
-│   └── TimerReminder-1.0.0-release.apk
+│   └── TimerReminder.apk
 ├── docs/superpowers/specs/  # 设计文档
 ├── CHANGELOG.md             # 版本历史
 ├── 使用说明.md              # 简短版用户使用说明
