@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| 正式版本 | 1.0.0（versionCode 1） |
+| 正式版本 | 1.0.1（versionCode 2） |
 | 包名 | `com.example.timereminder` |
 | 支持系统 | Android 8.0+（API 26） |
 | 技术栈 | Kotlin + Jetpack Compose + AlarmManager（setAlarmClock）+ 前台服务 |
@@ -163,4 +163,5 @@ gradlew.bat testDebugUnitTest      :: 单元测试
 
 ## 版本历史
 
+- **v1.0.1（2026-08-04）**：使用说明补充「后台弹出界面」「锁屏显示」权限指引，版本号升至 1.0.1。
 - **v1.0.0（2026-08-04）**：首个正式版。循环提醒（间隔 1~9999 分钟、可设截止时间）、一次性提醒、通知横幅 + 全屏闹钟、立即测试、开机恢复。详见 `CHANGELOG.md`。
