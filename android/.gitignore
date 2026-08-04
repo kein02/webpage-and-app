@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 签名密钥（切勿提交）
+*.jks
+*.keystore
+keystore.properties
+keystore/

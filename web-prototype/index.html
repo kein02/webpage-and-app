@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>定时提醒（浏览器原型）</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>⏰ 定时提醒</h1>
+        <p class="subtitle">浏览器原型版 · 循环提醒 · 通知横幅 + 全屏闹钟</p>
+      </div>
+      <label class="switch-row" id="testModeRow" title="开启后 1 分钟 = 1 秒，方便快速验证循环提醒（仅原型，打包后无此功能）">
+        <span class="switch-label">测试模式</span>
+        <span class="switch">
+          <input type="checkbox" id="testModeSwitch">
+          <span class="knob"></span>
+        </span>
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel form-panel">
+      <h2 id="formTitle">添加提醒</h2>
+      <form id="taskForm" novalidate>
+        <input type="hidden" id="editId">
+
+        <div class="field">
+          <label for="nameInput">提醒名称</label>
+          <input type="text" id="nameInput" placeholder="例如：喝水、站起来活动、滴眼药水" maxlength="30">
+        </div>
+
+        <div class="field">
+          <label for="intervalInput">提醒间隔（分钟）</label>
+          <input type="number" id="intervalInput" min="1" max="9999" step="1" value="30">
+          <p class="hint">1 分钟 ~ 9999 分钟（约 7 天），任意整数</p>
+        </div>
+
+        <div class="field">
+          <label>提醒方式</label>
+          <div class="radio-group" id="modeGroup">
+            <label><input type="radio" name="mode" value="notification" checked> 通知横幅</label>
+            <label><input type="radio" name="mode" value="alarm"> 全屏闹钟</label>
+            <label><input type="radio" name="mode" value="both"> 两者都要</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="check-group">
+            <label><input type="checkbox" id="soundCheck" checked> 响铃</label>
+            <label><input type="checkbox" id="vibrateCheck" checked> 震动</label>
+          </div>
+          <p class="hint">响铃/震动仅对「通知横幅」生效；全屏闹钟始终持续响铃直到手动停止</p>
+        </div>
+
+        <div class="field">
+          <label><input type="checkbox" id="enabledCheck" checked> 保存后立即启用</label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="saveBtn">保存提醒</button>
+          <button type="button" class="btn" id="cancelBtn" hidden>取消编辑</button>
+        </div>
+        <p id="formError" class="error" hidden></p>
+      </form>
+    </section>
+
+    <section class="panel list-panel">
+      <h2>我的提醒 <span id="taskCount" class="count"></span></h2>
+      <div id="taskList" class="task-list"></div>
+      <p id="emptyHint" class="empty-hint" hidden>还没有提醒任务，先在上方添加一个吧。</p>
+    </section>
+  </main>
+
+  <!-- 通知横幅容器（页面内模拟系统通知） -->
+  <div id="bannerContainer" class="banner-container" aria-live="polite"></div>
+
+  <!-- 全屏闹钟遮罩 -->
+  <div id="alarmOverlay" class="alarm-overlay" hidden>
+    <div class="alarm-box">
+      <div class="alarm-icon">🔔</div>
+      <div id="alarmTitle" class="alarm-title"></div>
+      <div id="alarmSub" class="alarm-sub">到点啦！点击下方按钮停止响铃</div>
+      <button id="alarmStopBtn" class="btn primary big">停止响铃</button>
+    </div>
+  </div>
+
+  <script src="core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
