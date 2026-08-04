@@ -1,0 +1,13 @@
+{
+  "name": "增肌助手 · 居家健身",
+  "short_name": "增肌助手",
+  "description": "居家健身训练助手，包含动作库、训练计划、进度追踪",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

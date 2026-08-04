@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#0a0e17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>增肌助手 · 居家健身</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>增肌<span>助手</span></h1>
+    <div class="header-actions">
+      <span id="online-indicator">● 在线</span>
+      <button id="sound-toggle" class="sound-btn" onclick="toggleSound()" title="声音开关">🔊</button>
+    </div>
+  </div>
+  <div class="views">
+    <!-- PLAN VIEW -->
+    <div id="view-plan" class="view active">
+      <div id="plan-list"></div>
+    </div>
+    <!-- WORKOUT VIEW -->
+    <div id="view-workout" class="view">
+      <div id="workout-content"></div>
+    </div>
+    <!-- EXERCISE LIBRARY VIEW -->
+    <div id="view-exercise" class="view">
+      <div id="ex-list"></div>
+    </div>
+    <!-- EXERCISE DETAIL VIEW -->
+    <div id="view-ex-detail" class="view">
+      <div id="ex-detail-container"></div>
+    </div>
+    <!-- PROGRESS VIEW -->
+    <div id="view-progress" class="view">
+      <div id="progress-content"></div>
+    </div>
+    <!-- SETTINGS VIEW -->
+    <div id="view-settings" class="view">
+      <div id="settings-content"></div>
+    </div>
+  </div>
+
+  <!-- Rest timer overlay -->
+  <div id="rest-overlay">
+    <span id="rt-num">60</span>
+    <p>秒后继续</p>
+    <button class="skip-btn" onclick="doSkipRest()">跳过休息</button>
+  </div>
+
+  <!-- Flash notification -->
+  <div id="rest-flash">休息完成！继续训练</div>
+
+  <!-- PWA Install Banner -->
+  <div id="install-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#ff6b6b,#ff922b);color:#fff;text-align:center;padding:14px;z-index:10000;font-size:14px;font-weight:600;animation:slideDown 0.3s ease;">
+    <span>📲 添加到主屏幕，离线也能用！</span>
+    <button onclick="doInstall()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:6px;background:#fff;color:#ff6b6b;font-weight:700;cursor:pointer;font-size:13px;">安装</button>
+    <button onclick="dismissInstall()" style="margin-left:4px;padding:4px 8px;border:none;border-radius:6px;background:rgba(255,255,255,0.3);color:#fff;cursor:pointer;font-size:13px;">×</button>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-plan" onclick="navigateTo('plan')">
+      <span class="n-icon">📋</span>
+      <span>计划</span>
+    </button>
+    <button class="nav-item" id="nav-workout" onclick="navigateTo('workout')" style="display:none">
+      <span class="n-icon">🏋️</span>
+      <span>训练中</span>
+    </button>
+    <button class="nav-item" id="nav-exercise" onclick="navigateTo('exercise')">
+      <span class="n-icon">📖</span>
+      <span>动作库</span>
+    </button>
+    <button class="nav-item" id="nav-progress" onclick="navigateTo('progress')">
+      <span class="n-icon">📊</span>
+      <span>进度</span>
+    </button>
+    <button class="nav-item" id="nav-settings" onclick="navigateTo('settings')">
+      <span class="n-icon">⚙️</span>
+      <span>设置</span>
+    </button>
+  </nav>
+</div>
+
+<script src="data.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+<script>
+// ====== PWA: Service Worker 注册 ======
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js')
+      .then(function(reg) {
+        console.log('SW registered:', reg.scope);
+        // 主动刷新：检测新版本 sw.js 后强制激活
+        reg.addEventListener('updatefound', function() {
+          var newWorker = reg.installing;
+          newWorker.addEventListener('statechange', function() {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // 有新版本 SW，通知页面刷新
+              if (confirm('发现新版本，是否立即刷新？')) {
+                window.location.reload();
+              }
+            }
+          });
+        });
+      })
+      .catch(function(err) { console.error('SW registration failed:', err); });
+  });
+}
+
+// ====== PWA: 安装提示 ======
+var installPrompt = null;
+var bannerShown = false; // 标记本次页面生命周期内是否已显示过
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  installPrompt = e;
+  if (!bannerShown) {
+    bannerShown = true;
+    showInstallBanner();
+  }
+});
+
+// 兜底：不管 beforeinstallprompt 是否触发，页面加载后 2 秒都显示
+setTimeout(function() {
+  if (!bannerShown) {
+    bannerShown = true;
+    showInstallBanner();
+  }
+}, 2000);
+
+function showInstallBanner() {
+  document.getElementById('install-banner').style.display = 'block';
+  // 3秒后自动消失
+  setTimeout(function() {
+    document.getElementById('install-banner').style.display = 'none';
+  }, 3000);
+}
+
+window.doInstall = function() {
+  if (installPrompt) {
+    installPrompt.prompt();
+    installPrompt.userChoice.then(function(result) {
+      if (result.outcome === 'accepted') {
+        document.getElementById('install-banner').style.display = 'none';
+      }
+      installPrompt = null;
+    });
+  } else {
+    // 国产 WebView 引导手动安装
+    alert('长按页面 → 选择"添加到主屏幕"\n\n或在浏览器菜单中选择"添加到主屏幕"');
+    dismissInstall();
+  }
+};
+
+window.dismissInstall = function() {
+  document.getElementById('install-banner').style.display = 'none';
+};
+
+// ====== PWA: 离线状态指示 ======
+window.addEventListener('online',  function() { updateOnlineStatus(); });
+window.addEventListener('offline', function() { updateOnlineStatus(); });
+
+function updateOnlineStatus() {
+  var indicator = document.getElementById('online-indicator');
+  if (!indicator) return;
+  if (navigator.onLine) {
+    indicator.style.background = '#6bcb77';
+    indicator.textContent = '● 在线';
+  } else {
+    indicator.style.background = '#ff922b';
+    indicator.textContent = '● 离线（数据本地保存）';
+  }
+}
+updateOnlineStatus();
+
+init();
+</script>
+</body>
+</html>
