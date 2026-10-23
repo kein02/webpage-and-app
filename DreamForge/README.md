@@ -112,7 +112,7 @@ dreamforge/
 ├── server.js               # 服务端：静态文件 + API + 任务引擎 + Provider 抽象（演示/真实·Agnes/真实·火山方舟/Mock）
 ├── models.config.json      # 模型注册表 + provider 映射：4 个产品模型 ↔ 上游模型 ID（agnes / volcengine 两段）
 ├── package.json            # npm start / npm test；声明 Node 18+
-├── 部署到公开链接.md        # 手把手部署教程：GitHub 仓库 → Render → 公开域名
+├── 部署到公开链接.md        # 部署到公网的通用指引：Zeabur / Render 等平台（可选）
 ├── CLAUDE.md               # 项目约定：结构、硬边界规则、开发约定
 ├── CHANGELOG.md            # 更新日志
 ├── LICENSE                 # MIT
@@ -207,7 +207,7 @@ node server.js
 
 ### 方式 B：部署成公网链接，发给所有人（推荐打开「公开部署锁」）
 
-> 想要一个**干净的公开域名**（无参数、任何人点开即用）？用 Render 从本仓库部署，见 [《部署到公开链接.md》](部署到公开链接.md)；下面这套是用自己的电脑/服务器起服务时用的。
+> 想要一个**干净的公开域名**（任何人点开即用）？用 Zeabur / Render 等平台部署，见 [《部署到公开链接.md》](部署到公开链接.md)；下面这套是用自己的电脑/服务器起服务时用的。
 
 沙箱类平台没有环境变量界面，配置靠项目里的 `.env` 传。**部署前**先把 `.env` 里这两行设上（Key 行保持为空！）：
 
