@@ -1,0 +1,125 @@
+{
+  "app": {
+    "name": "DreamForge 造梦工坊",
+    "tagline": "提交 → 轮询 → 出片：一个能读懂的 AI 视频生成工作台",
+    "max_running": 2
+  },
+  "providers": {
+    "active": "auto",
+    "volcengine": {
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key_env": "VOLC_API_KEY",
+      "poll_interval_ms": 8000,
+      "map": {
+        "forge-v1-fast": {
+          "upstream_model": "doubao-seedance-1-0-pro-250528",
+          "duration_range": [2, 12],
+          "ratio": "adaptive",
+          "generate_audio": false
+        },
+        "forge-v2-pro": {
+          "upstream_model": "doubao-seedance-2-5-260628",
+          "duration_range": [4, 30],
+          "ratio": "adaptive",
+          "generate_audio": false
+        },
+        "forge-v25-sample": {
+          "upstream_model": "doubao-seedance-2-5-260628",
+          "duration_range": [4, 30],
+          "ratio": "adaptive",
+          "generate_audio": false,
+          "supports_draft": true
+        },
+        "forge-cine": {
+          "upstream_model": "doubao-seedance-2-5-260628",
+          "duration_range": [4, 30],
+          "ratio": "adaptive",
+          "generate_audio": false
+        }
+      }
+    },
+    "agnes": {
+      "_note": "Agnes AI 视频 API（异步任务制，OpenAI 兼容风格）。免费通道 = agnes-video-2.5-flash（720P、4-12 秒、限时免费）；想要 1080P/2K 可把某个模型的 upstream_model 改成 agnes-video-2.5、size 改成 1080P（付费，约 $0.04/秒）。免费档每分钟 1 条，服务端会自动串行提交。接口分区域：国际站 Key 用默认 api_root（apihub.agnes-ai.com）；国内站（platform.agnes-ai.cn）创建的 Key 必须设环境变量 AGNES_API_ROOT=https://api.agnes-ai.cn（注意官方国内接口是 api.agnes-ai.cn，不是 apihub.agnes-ai.cn，后者会 401）。",
+      "api_root": "https://apihub.agnes-ai.com",
+      "api_key_env": "AGNES_API_KEY",
+      "poll_interval_ms": 3000,
+      "aspect_ratio": "16:9",
+      "map": {
+        "forge-v1-fast": {
+          "upstream_model": "agnes-video-2.5-flash",
+          "seconds_range": [4, 12],
+          "size": "720P"
+        },
+        "forge-v2-pro": {
+          "upstream_model": "agnes-video-2.5-flash",
+          "seconds_range": [4, 12],
+          "size": "720P"
+        },
+        "forge-v25-sample": {
+          "upstream_model": "agnes-video-2.5-flash",
+          "seconds_range": [4, 12],
+          "size": "720P"
+        },
+        "forge-cine": {
+          "upstream_model": "agnes-video-2.5-flash",
+          "seconds_range": [4, 12],
+          "size": "720P"
+        }
+      }
+    }
+  },
+  "video_models": [
+    {
+      "key": "forge-v1-fast",
+      "name": "ForgeVideo 1.0 Fast",
+      "badge": "快",
+      "tagline": "6 秒出片，适合快速试错",
+      "speed_ms": 6000,
+      "supports": ["first_frame", "draft"],
+      "options": {
+        "duration_ms": [3000, 5000],
+        "resolution": ["480p", "720p"],
+        "steps": { "min": 10, "max": 30, "default": 16 }
+      }
+    },
+    {
+      "key": "forge-v2-pro",
+      "name": "ForgeVideo 2.0 Pro",
+      "badge": "推荐",
+      "tagline": "10 秒出片，画质与速度均衡",
+      "speed_ms": 10000,
+      "supports": ["first_frame", "draft"],
+      "options": {
+        "duration_ms": [5000, 8000, 10000],
+        "resolution": ["720p", "1080p"],
+        "steps": { "min": 10, "max": 41, "default": 24 }
+      }
+    },
+    {
+      "key": "forge-v25-sample",
+      "name": "ForgeVideo 2.5 样片模式",
+      "badge": "省钱",
+      "tagline": "先出 480P 样片预览，满意再直出高清 —— 复刻即梦 Seedance 2.5 的样片策略",
+      "speed_ms": 4000,
+      "supports": ["draft_only"],
+      "options": {
+        "duration_ms": [5000, 10000],
+        "resolution": ["720p", "1080p"],
+        "steps": { "min": 10, "max": 41, "default": 16 }
+      }
+    },
+    {
+      "key": "forge-cine",
+      "name": "ForgeCine 电影版",
+      "badge": "高质",
+      "tagline": "14 秒出片，默认 28 步采样，电影感构图",
+      "speed_ms": 14000,
+      "supports": ["first_frame"],
+      "options": {
+        "duration_ms": [8000, 10000, 15000],
+        "resolution": ["1080p"],
+        "steps": { "min": 16, "max": 50, "default": 28 }
+      }
+    }
+  ]
+}

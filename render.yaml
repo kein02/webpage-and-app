@@ -1,0 +1,22 @@
+# Render Blueprint（仓库级）
+# 用法：Render 控制台 → New + → Blueprint → 选本仓库 → Apply
+# 本项目零依赖，无需构建；启动命令 node server.js，端口由 Render 注入的 PORT 决定。
+
+services:
+  - type: web
+    name: dreamforge
+    runtime: node
+    plan: free
+    region: singapore        # 离国内较近；可改 oregon / frankfurt
+    rootDir: DreamForge      # 项目在本仓库的子目录
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      # 演示模式兜底：没带 Key 的访客看 SVG 动画，不调外部模型、零花费
+      - key: DREAMFORGE_PROVIDER
+        value: demo
+      # 公开部署锁：服务器不存任何人的 Key，访客在页面填自己的 Key
+      - key: DREAMFORGE_PUBLIC
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"

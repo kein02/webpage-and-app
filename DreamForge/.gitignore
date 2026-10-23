@@ -1,0 +1,32 @@
+# ===== 绝不外发的文件 =====
+# API Key 配置文件（真实 Key 只放这里或系统环境变量）
+.env
+.env.*
+!.env.example
+# 线上部署链接（含 sharecode 访问凭证，公开即等于泄露）
+线上链接.txt
+
+# ===== 运行产物 / 本机专属 =====
+# 真实模式生成后自动转存的 MP4（个人作品，非代码）
+public/videos/
+# Mock 模式自测样本与大文件（本机自测用）
+.dev/
+# 便携版打包用的 Node 运行时（84MB，不进 git；打包 zip 时才需要它）
+node/
+# 便携包产物（zip 与解压出来的目录）
+DreamForge-便携版.zip
+DreamForge-便携版/
+.portable-stage/
+
+# ===== 平台 / 临时产物 =====
+# 应用发布标记文件
+*.genie
+# 一次性测试脚本（_ 开头）
+_*.js
+# 日志
+*.log
+
+# ===== 编辑器 / 系统 =====
+node_modules/
+.DS_Store
+Thumbs.db

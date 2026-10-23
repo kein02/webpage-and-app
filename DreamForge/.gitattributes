@@ -1,0 +1,13 @@
+# 统一行尾，避免跨平台 clone 后文件行为不一致
+* text=auto eol=lf
+
+# Windows 批处理必须是 CRLF，否则 cmd 解析会出错（历史上踩过：LF 的 .bat 吞字符/乱行）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不参与行尾转换
+*.mp4 binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary

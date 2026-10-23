@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DreamForge 造梦工坊</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">◆ DreamForge <span class="brand-sub">造梦工坊</span></div>
+    <div class="topbar-right">
+      <span class="mode-badge" id="modeBadge">检测中…</span>
+      <button id="channelBtn" class="btn ghost small-btn" type="button">⇄ 切换通道</button>
+      <span class="conn" id="conn"><span class="conn-dot" id="connDot"></span><span id="connText">连接中…</span></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左：创作面板 -->
+    <section class="panel">
+      <h2><span class="step">1</span> 选择模型</h2>
+      <div id="modelCards" class="model-cards"></div>
+
+      <h2><span class="step">2</span> 描述你想要的视频</h2>
+      <textarea id="prompt" rows="4" maxlength="500" placeholder="例：一只机械猫在霓虹雨夜的屋顶上奔跑，镜头缓慢推近"></textarea>
+      <div class="enhance-row">
+        <button id="enhanceBtn" class="btn ghost" type="button">✨ AI 润色提示词</button>
+        <span id="enhanceStatus" class="muted"></span>
+      </div>
+
+      <h2><span class="step">3</span> 参数</h2>
+      <div class="param-block">
+        <label class="param-label">时长</label>
+        <div id="durationChips" class="chips"></div>
+      </div>
+      <div class="param-block">
+        <label class="param-label">分辨率</label>
+        <div id="resolutionChips" class="chips"></div>
+      </div>
+      <div class="param-block">
+        <label class="param-label">采样步数 <b id="stepsValue" class="muted"></b></label>
+        <input id="stepsRange" type="range" min="10" max="41" value="16" />
+      </div>
+      <div class="param-block" id="draftBlock" hidden>
+        <label class="check">
+          <input id="draftToggle" type="checkbox" />
+          <span id="draftLabel">草稿模式（先出 480P 样片，满意再直出高清）</span>
+        </label>
+      </div>
+      <div class="param-block" id="firstFrameBlock" hidden>
+        <label class="param-label" id="firstFrameLabel">首帧图片（图生视频，可选）</label>
+        <input id="firstFrame" type="file" accept="image/*" />
+        <span id="firstFrameName" class="muted small"></span>
+        <span id="firstFrameHint" class="muted small" hidden></span>
+        <button id="switchFrameChannelBtn" class="btn ghost small-btn" type="button" hidden>⚡ 切换到火山方舟通道（支持首帧图）</button>
+      </div>
+
+      <button id="generateBtn" class="btn primary big" type="button">🚀 开始生成</button>
+    </section>
+
+    <!-- 右：任务队列 + 作品库 -->
+    <section class="panel">
+      <h2>任务队列 <span id="runningInfo" class="muted small"></span></h2>
+      <div id="taskList" class="task-list"></div>
+
+      <h2>作品库</h2>
+      <div id="gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span id="footerText">本工具为教学演示：复刻自即梦AI 的架构逆向分析（服务端模型注册表 / 提交-轮询 / 草稿-直出 / 独立润色服务 / 页面内一键切换出片通道）。当前为演示模式：生成结果为程序化 SVG 动画，不调用任何外部 AI 模型。</span>
+  </footer>
+
+  <div id="toasts" class="toasts"></div>
+
+  <!-- 通道配置 / 切换面板 -->
+  <div id="channelModal" class="modal-mask" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h3>出片通道配置</h3>
+        <button id="channelModalClose" class="modal-x" type="button" title="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted small modal-tip">Key 只保存在本机 .env 文件里（服务旁边），除对应官方接口外不发送到任何地方；保存后立即生效，无需重启。切到付费通道前请确认已了解计费方式。</p>
+        <div id="channelRows"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

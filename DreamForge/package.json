@@ -1,0 +1,30 @@
+{
+  "name": "dreamforge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "一个能读懂的 AI 视频生成工作台：复刻即梦AI 创作台的架构逆向分析（服务端模型注册表 / 提交-轮询 / 草稿-直出 / 独立润色服务 / 页面内切换出片通道）",
+  "main": "server.js",
+  "author": "kein",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/regression-smoke.mjs && node tests/security-test.mjs && node tests/visitor-isolation-test.mjs && node tests/task-isolation-test.mjs && node tests/ui-public-test.mjs",
+    "test:smoke": "node tests/regression-smoke.mjs",
+    "test:security": "node tests/security-test.mjs",
+    "test:isolation": "node tests/visitor-isolation-test.mjs",
+    "test:task-isolation": "node tests/task-isolation-test.mjs",
+    "test:ui": "node tests/ui-public-test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai-video",
+    "text-to-video",
+    "dreamina",
+    "jimeng",
+    "reverse-engineering",
+    "nodejs",
+    "zero-dependency"
+  ],
+  "license": "MIT"
+}
