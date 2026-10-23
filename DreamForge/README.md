@@ -1,6 +1,10 @@
 # DreamForge 造梦工坊
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kein02/webpage-and-app)
+### ⬇️ [下载 Windows 便携版 v1.0.0（约 32MB · 解压双击即用 · 不用装任何东西）](https://github.com/kein02/webpage-and-app/releases/latest)
+
+> 下载后解压 → 双击 `DreamForge\start.bat` → 浏览器自动打开，直接能玩（演示模式零花费）。
+> 包里已经内置 Node.js 运行时，对方**不需要装任何环境**；`.env` 是空模板，不含任何 Key。
+
 
 > 一个**能读懂**的 AI 视频生成工作台：复刻即梦AI 创作台的架构（服务端模型注册表 / 提交-轮询 / 草稿-直出 / 独立润色服务 / 页面内切换出片通道），零第三方依赖、零构建步骤。
 
@@ -8,8 +12,9 @@
 | --- | --- |
 | 项目定位 | 架构逆向分析的教学演示（基于理解的全新实现，不包含原程序任何代码，非官方） |
 | 技术栈 | Node.js 18+（原生 `node:http`，**零第三方依赖**）+ 原生 HTML/CSS/JS（无框架无打包器） |
-| 本地运行 | `node server.js`（无需 `npm install`）· Windows 也可双击 `start.bat` |
-| 在线部署 | Render Blueprint 一键部署（仓库根 `render.yaml`），得到无参数公开域名 |
+| 最省事的用法 | 下载 **Windows 便携版**（[Releases](https://github.com/kein02/webpage-and-app/releases/latest)）→ 解压 → 双击 `start.bat` |
+| 源码运行 | `node server.js`（Node 18+，零依赖、无需 `npm install`） |
+| 在线部署（可选） | Render / Zeabur 等任意支持长驻 Node 的平台，见《部署到公开链接.md》 |
 | 出片模式 | 演示模式（免费 SVG）/ Agnes AI（免费通道，真 MP4）/ 火山方舟 Seedance（真 MP4 + 首帧图） |
 | 测试 | `npm test` — 5 套、115 项断言，零依赖 |
 | 许可证 | MIT |

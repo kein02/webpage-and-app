@@ -6,4 +6,4 @@
 | --- | --- | --- |
 | ⏰ 定时提醒 | Android 循环/一次性提醒 App（通知 + 全屏闹钟） | [TimerReminder/](TimerReminder/) |
 | 🏋️ 增肌助手 | 居家健身 Web App（70+ 动作、训练计划、进度追踪） | [Fitness_Web_App/](Fitness_Web_App/) |
-| 🎬 造梦工坊 | AI 视频生成工作台（复刻即梦架构，零依赖 Node，可一键部署在线链接） | [DreamForge/](DreamForge/) |
+| 🎬 造梦工坊 | AI 视频生成工作台（复刻即梦架构，Windows 便携版解压即用 / 源码零依赖） | [DreamForge/](DreamForge/) |
