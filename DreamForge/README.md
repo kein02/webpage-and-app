@@ -1,9 +1,18 @@
 # DreamForge 造梦工坊
 
-### ⬇️ [下载 Windows 便携版 v1.0.0（约 32MB · 解压双击即用 · 不用装任何东西）](https://github.com/kein02/webpage-and-app/releases/latest)
+### ⬇️ 下载便携版（不用装任何环境，解压双击即用）
 
-> 下载后解压 → 双击 `DreamForge\start.bat` → 浏览器自动打开，直接能玩（演示模式零花费）。
-> 包里已经内置 Node.js 运行时，对方**不需要装任何环境**；`.env` 是空模板，不含任何 Key。
+| 你的电脑 | 下载包 | 启动方式 |
+| --- | --- | --- |
+| **Windows** 10/11 | `DreamForge-Portable-Windows-v1.0.0.zip`（约 32MB） | 解压 → 双击 `start.bat` |
+| **macOS**（M1/M2/M3…） | `DreamForge-Portable-macOS-AppleSilicon-v1.0.0.zip`（约 35MB） | 解压 → 双击 `start.command`（首次需右键 → 打开） |
+| macOS（Intel）/ Linux | 下载源码，用你自己的 Node 18+ | `node server.js` |
+
+**👉 [去 Releases 下载](https://github.com/kein02/webpage-and-app/releases/latest)**
+
+> 包里已内置对应平台的 Node.js 运行时，对方**不需要装任何环境**；`.env` 是空模板，不含任何 Key。
+> 启动后浏览器自动打开 `http://localhost:3000`，默认演示模式（零花费、不需要 Key）。
+
 
 
 > 一个**能读懂**的 AI 视频生成工作台：复刻即梦AI 创作台的架构（服务端模型注册表 / 提交-轮询 / 草稿-直出 / 独立润色服务 / 页面内切换出片通道），零第三方依赖、零构建步骤。
