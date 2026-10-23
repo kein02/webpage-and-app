@@ -14,7 +14,7 @@ public/videos/
 # 便携版打包用的 Node 运行时（84MB，不进 git；打包 zip 时才需要它）
 node/
 # 便携包产物（zip 与解压出来的目录）
-DreamForge-便携版.zip
+DreamForge-便携版*.zip
 DreamForge-便携版/
 .portable-stage/
 
