@@ -10,6 +10,14 @@
 
 **👉 [去 Releases 下载](https://github.com/kein02/webpage-and-app/releases/latest)**
 
+> **🇨🇳 国内打不开 GitHub？** 用加速镜像（把下面整行复制到浏览器地址栏）：
+>
+> Windows：`https://ghfast.top/https://github.com/kein02/webpage-and-app/releases/download/dreamforge-v1.0.0/DreamForge-Portable-Windows-v1.0.0.zip`
+>
+> macOS：`https://ghfast.top/https://github.com/kein02/webpage-and-app/releases/download/dreamforge-v1.0.0/DreamForge-Portable-macOS-AppleSilicon-v1.0.0.zip`
+>
+> 镜像时好时坏：如果上面不通，把开头的 `https://ghfast.top/` 换成 `https://ghproxy.net/` 再试（这两个实测可用）。
+
 > 包里已内置对应平台的 Node.js 运行时，对方**不需要装任何环境**；`.env` 是空模板，不含任何 Key。
 > 启动后浏览器自动打开 `http://localhost:3000`，默认演示模式（零花费、不需要 Key）。
 
