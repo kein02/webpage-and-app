@@ -215,8 +215,27 @@ function testSensitiveFiles() {
   const files = walk(pub);
   const bad = files.filter((f) => /\.(env|key|pem|log)$|(^|[\\/])\.env/i.test(f));
   ok('public 下无 .env/.key/.pem/.log 文件', bad.length === 0, bad.map((f) => path.basename(f)).join(',') || '干净');
-  const all = readEnvMaybe();
-  ok('.env 为空值模板或不存在（都没有真实 Key）', !all || !/sk-[A-Za-z0-9]{20,}/.test(all), all ? '无 sk- 长串' : '无 .env（干净 clone）');
+
+  /* 该断言的是 .env.example——它是唯一会进仓库、会进便携包的那份，必须永远空模板。
+   * 开发者本机的 .env 放自己的 Key 是正常用法（.gitignore 已排除，打包脚本另有安全闸），
+   * 所以对 .env 只打印说明、不作断言：否则开发机上 npm test 永远红这一条。 */
+  const keyVars = (txt) => (txt || '').split(/\r?\n/)
+    .filter((l) => /^[A-Z0-9_]+(_API_KEY|_KEY)=/.test(l))
+    .filter((l) => l.split('=', 2)[1].trim())
+    .map((l) => l.split('=', 2)[0]);
+
+  const exPath = path.join(ROOT, '.env.example');
+  const ex = fs.existsSync(exPath) ? fs.readFileSync(exPath, 'utf8') : null;
+  const exVals = keyVars(ex);
+  ok('.env.example（会进仓库/进包的那份）为空值模板', !ex || exVals.length === 0,
+    ex ? (exVals.length ? '有非空值：' + exVals.join(',') : '空模板') : '文件不存在');
+
+  const local = readEnvMaybe();
+  if (local) {
+    const ks = keyVars(local);
+    console.log('  说明  本机 .env 已配置 ' + ks.length + ' 个 Key（' + (ks.join(', ') || '无') + '）：'
+      + '开发者本地配置，.gitignore 已排除，打包脚本另有安全闸拦截');
+  }
 }
 
 (async () => {

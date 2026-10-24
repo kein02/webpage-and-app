@@ -775,9 +775,12 @@ async function pollProviderTasks() {
           t.progress = clamp(data.progress * 0.85, 10, 85); // 用上游进度驱动进度条
         }
       } else if (p.name === 'siliconflow') {
-        // 硅基流动轮询：GET /video/status?requestId=xxx
-        const res = await fetch(p.baseUrl + '/video/status?requestId=' + encodeURIComponent(t.upstream_id), {
-          headers: { Authorization: 'Bearer ' + p.apiKey },
+        // 硅基流动轮询：POST /video/status，body {requestId}
+        // 实测（2026-10-24，假 Key 探测）：GET 一律 404，POST 才存在；GET 会被误判成"上游创建失败"
+        const res = await fetch(p.baseUrl + '/video/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + p.apiKey },
+          body: JSON.stringify({ requestId: t.upstream_id }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));

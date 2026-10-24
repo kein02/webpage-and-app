@@ -116,7 +116,7 @@
       }
     },
     "siliconflow": {
-      "_note": "硅基流动 SiliconFlow。Wan-AI/Wan2.2-T2V-A14B 约 2 元/条（5 秒 720P）。接口：POST /v1/video/submit {model,prompt,image_size,image?} → {requestId}；GET /v1/video/status?requestId=xxx → {status, results:[{url}]}。**结果有效期仅 10 分钟**，必须立刻下载。image 字段支持 data:image/png;base64，因此可支持本地首帧图（图生视频用 Wan2.2-I2V-A14B）。",
+      "_note": "硅基流动 SiliconFlow。Wan-AI/Wan2.2-T2V-A14B 约 2 元/条（5 秒 720P）。接口（2026-10-24 假 Key 探测确认）：POST /v1/video/submit {model,prompt,image_size,image?} → {requestId}；**POST /v1/video/status**（不是 GET！GET 返回 404）body {requestId} → {status, results:[{url}]}。**结果有效期仅 10 分钟**，必须立刻下载。image 字段支持 data:image/png;base64，因此可支持本地首帧图（图生视频用 Wan2.2-I2V-A14B）。",
       "base_url": "https://api.siliconflow.cn/v1",
       "api_key_env": "SILICONFLOW_API_KEY",
       "poll_interval_ms": 4000,

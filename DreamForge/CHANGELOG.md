@@ -26,6 +26,29 @@
 - 新增《视频模型接入大全.md》（全球模型名单 / 价格对照 / 已停服清单 / 选型建议）
 - README 出片模式从三种更新为六种
 
+**修复：硅基流动轮询用错 HTTP 方法（会导致该通道必失败）**
+
+`/v1/video/status` 只接受 **POST**（body `{requestId}`）。原先写成 GET + query 参数，
+真实接口一律返回 404，用户配了 Key 也会看到「上游创建失败」。
+
+用假 Key 探测真实端点确认的（2026-10-24）：
+
+| 端点 | 假 Key 响应 | 结论 |
+| --- | --- | --- |
+| `POST /v1/video/submit` | 401 `Token is invalid` | 路径正确 |
+| `GET  /v1/video/status?...` | 404 Not Found | ❌ 路径错 |
+| `POST /v1/video/status` | 401 | ✅ 正确（POST） |
+| MiniMax `/v1/video_generation` | 200 + `base_resp 1004` | 路径正确 |
+| MiniMax `/v1/query/video_generation`、`/v1/files/retrieve` | 200 + `1004` | 路径正确 |
+
+同时把本地假上游改成按真实行为响应（`GET /video/status` 返回 404、状态按
+InQueue→InProgress→Succeed 推进），并复测两档全链路通过。
+
+**修复：安全测试误报**
+
+`.env` 的断言改成只针对 `.env.example`（唯一进仓库/进包的那份）；开发者本机 `.env`
+放真实 Key 是正常用法，原先会让开发机上 `npm test` 永远红一条。
+
 **验证**
 
 - 智谱：**真实 Key 端到端出片**（60 秒产出 1.8MB H.264 MP4，`ftypisom`/`avc1` 与 HTTP 200 校验通过）
