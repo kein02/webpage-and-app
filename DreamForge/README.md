@@ -4,17 +4,17 @@
 
 | 你的电脑 | 下载包 | 启动方式 |
 | --- | --- | --- |
-| **Windows** 10/11 | `DreamForge-Portable-Windows-v1.0.0.zip`（约 32MB） | 解压 → 双击 `start.bat` |
-| **macOS**（M1/M2/M3…） | `DreamForge-Portable-macOS-AppleSilicon-v1.0.0.zip`（约 35MB） | 解压 → 双击 `start.command`（首次需右键 → 打开） |
+| **Windows** 10/11 | `DreamForge-Portable-Windows-v1.1.0.zip`（约 32MB） | 解压 → 双击 `start.bat` |
+| **macOS**（M1/M2/M3…） | `DreamForge-Portable-macOS-AppleSilicon-v1.1.0.zip`（约 35MB） | 解压 → 双击 `start.command`（首次需右键 → 打开） |
 | macOS（Intel）/ Linux | 下载源码，用你自己的 Node 18+ | `node server.js` |
 
 **👉 [去 Releases 下载](https://github.com/kein02/webpage-and-app/releases/latest)**
 
 > **🇨🇳 国内打不开 GitHub？** 用加速镜像（把下面整行复制到浏览器地址栏）：
 >
-> Windows：`https://ghfast.top/https://github.com/kein02/webpage-and-app/releases/download/dreamforge-v1.0.0/DreamForge-Portable-Windows-v1.0.0.zip`
+> Windows：`https://ghfast.top/https://github.com/kein02/webpage-and-app/releases/download/dreamforge-v1.1.0/DreamForge-Portable-Windows-v1.1.0.zip`
 >
-> macOS：`https://ghfast.top/https://github.com/kein02/webpage-and-app/releases/download/dreamforge-v1.0.0/DreamForge-Portable-macOS-AppleSilicon-v1.0.0.zip`
+> macOS：`https://ghfast.top/https://github.com/kein02/webpage-and-app/releases/download/dreamforge-v1.1.0/DreamForge-Portable-macOS-AppleSilicon-v1.1.0.zip`
 >
 > 镜像时好时坏：如果上面不通，把开头的 `https://ghfast.top/` 换成 `https://ghproxy.net/` 再试（这两个实测可用）。
 
