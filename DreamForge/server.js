@@ -85,18 +85,19 @@ function resolveProvider(forceName, visitor) {
   if (choice === 'demo') return { name: 'demo', label: '演示模式', requested: 'demo', reason: '已强制指定演示模式' };
   // 汇总两个真实通道的配置与 Key 检测结果
   const vKey = visitor && visitor.apiKey ? visitor.apiKey : '';
-  const channels = ['agnes', 'volcengine'].map((name) => {
+  const channels = ['agnes', 'zhipu', 'volcengine'].map((name) => {
     const c = PROVIDER_CONF[name] || {};
     const envName = c.api_key_env || (name === 'agnes' ? 'AGNES_API_KEY' : 'VOLC_API_KEY');
     const apiKey = vKey && (!visitor.channel || visitor.channel === name) ? vKey : (process.env[envName] || '');
     return { name, conf: c, envName, apiKey };
   });
   // 强制指定某个通道时只检测它的 Key；auto 时按 [agnes, volcengine] 顺序取第一个有 Key 的
-  const wanted = (choice === 'agnes' || choice === 'volcengine') ? channels.filter((c) => c.name === choice) : channels;
+  const REAL_CHANNELS = ['agnes', 'zhipu', 'volcengine'];
+  const wanted = REAL_CHANNELS.includes(choice) ? channels.filter((c) => c.name === choice) : channels;
   const ready = wanted.find((c) => c.apiKey);
   if (!ready) {
     const missing = wanted.map((c) => c.envName).join(' / ');
-    const wantName = (choice === 'agnes' || choice === 'volcengine') ? choice : 'agnes/volcengine';
+    const wantName = REAL_CHANNELS.includes(choice) ? choice : 'agnes/zhipu/volcengine';
     return { name: 'demo', label: '演示模式', requested: wantName, reason: (visitor ? '还未填写 ' : '未在 .env 中检测到 ') + missing + (visitor ? '：在「切换通道」面板粘贴你自己的 Key 即可' : '，已回退演示模式') };
   }
   if (ready.name === 'agnes') {
@@ -111,6 +112,19 @@ function resolveProvider(forceName, visitor) {
       max_parallel: 1,               // 免费档 1 RPM：同时只提交 1 条，避免 429
       supports_first_frame: false,   // keyframe 模式只收公网图片 URL，本地图需图床
       aspect_ratio: ready.conf.aspect_ratio || '16:9',
+    };
+  }
+  if (ready.name === 'zhipu') {
+    return {
+      name: 'zhipu',
+      label: '真实出片 · 智谱 CogVideoX（免费）',
+      requested: 'zhipu',
+      reason: '',
+      apiKey: ready.apiKey,
+      baseUrl: process.env.ZHIPU_BASE_URL || ready.conf.base_url || 'https://open.bigmodel.cn/api/paas/v4',
+      pollMs: ready.conf.poll_interval_ms || 5000,
+      supports_first_frame: false, // image_url 只收公网图片地址，本地图转 dataURL 上游不认
+      watermark: true,             // 免费档返回值带 _watermark 文件，属官方行为
     };
   }
   return {
@@ -184,6 +198,7 @@ function providerMap(modelKey, providerName) {
  * 公开模式下它表示"这个请求有没有带对应 Key"（访客自带 Key 的场景），而不是服务端配没配。 */
 const CHANNEL_DEFS = [
   { name: 'agnes', label: 'Agnes AI · 免费通道', cost: '限时免费：720P · 4–12 秒 · 每分钟 1 条（不支持本地首帧图）', supports_first_frame: false, key_env: 'AGNES_API_KEY' },
+  { name: 'zhipu', label: '智谱 CogVideoX · 免费', cost: '0 元（带水印）：720P/1080P · 5–10 秒 · 高峰可能排队', supports_first_frame: false, key_env: 'ZHIPU_API_KEY' },
   { name: 'volcengine', label: '火山方舟 · Seedance', cost: '按量付费：支持首帧图 / 草稿样片 / 高清（新用户有免费额度）', supports_first_frame: true, key_env: 'VOLC_API_KEY' },
   { name: 'demo', label: '演示模式', cost: '零花费：程序化 SVG 演示，不出真片', supports_first_frame: true, key_env: null },
 ];
@@ -373,6 +388,7 @@ function buildUpstreamBody(t) {
   const p = t.provider || PROVIDER;
   const map = providerMap(t.model_key, p.name) || {};
   if (p.name === 'agnes') return buildAgnesBody(t, map, p);
+  if (p.name === 'zhipu') return buildZhipuBody(t, map, p);
   const content = [{ type: 'text', text: t.prompt }];
   if (t.first_frame_data) {
     content.push({ type: 'image_url', image_url: { url: t.first_frame_data }, role: 'first_frame' });
@@ -410,6 +426,25 @@ function buildAgnesBody(t, map, p) {
   };
 }
 
+/* 智谱 CogVideoX 请求体：
+ * - size 用 WxH 像素（1280x720 / 1920x1080），fps 固定 30
+ * - 实测确认可用的字段只有 model/prompt/size/fps；duration 部分模型支持，默认 5 秒
+ * - 免费档返回的是 _watermark.mp4（带水印），这是官方行为
+ * - 样片模式（forge-v25-sample）没有智谱映射，会在这里报错并提示换通道 */
+function buildZhipuBody(t, map, p) {
+  if (!map.upstream_model) {
+    throw new Error('模型 ' + t.model_key + ' 不支持智谱通道（样片模式请切到火山方舟）');
+  }
+  const body = {
+    model: map.upstream_model,
+    prompt: t.prompt,
+    size: map.size || '1280x720',
+    fps: map.fps || 30,
+  };
+  if (map.duration) body.duration = map.duration;
+  return body;
+}
+
 /* 上游临时性错误（服务繁忙 / 限流 / 网关抖动）按官方建议指数退避重试；
  * 参数与鉴权错误（400/401/404）不重试，立即失败。
  * 注意：只对"确定拿到 HTTP 响应"的情况重试；网络层异常（连接被重置等）不重试，避免重复创建任务。 */
@@ -422,6 +457,40 @@ async function fetchUpstream(url, options, label) {
     const wait = RETRY_DELAYS[i];
     console.log('  [上游重试] ' + label + ' 返回 HTTP ' + res.status + '，' + (wait / 1000) + ' 秒后自动第 ' + (i + 2) + '/3 次尝试');
     await sleep(wait);
+  }
+}
+
+/* 智谱免费模型的限流是以 HTTP 200 + {error:{code:"1305"}} 返回的，
+ * fetchUpstream 只按 HTTP 状态码重试，覆盖不到这种情况，所以这里单独做业务码重试。
+ * 实测：4 次提交里有 3 次返回 1305，所以必须重试，否则用户会觉得"一用就失败"。 */
+const ZHIPU_BUSY_CODES = new Set(['1305', '1302', '1303']);
+// 单轮只等约 9 秒（3 次尝试）：占着并发名额死等会让整条队列卡住。
+// 仍然排不上就把任务退回队列，由 tick 按 30s→60s→120s 的退避再试（用户可随时取消）。
+const ZHIPU_RETRY_DELAYS = [3000, 6000];
+async function submitZhipuWithRetry(p, body, t) {
+  for (let i = 0; ; i++) {
+    if (i > 0) {
+      // 加一点随机抖动，避免多个任务同时重试又撞在一起
+      await sleep(ZHIPU_RETRY_DELAYS[i - 1] + Math.floor(Math.random() * 1500));
+      t.upstream_status = 'busy-retry';
+      t.progress = 5;
+    }
+    const res = await fetch(p.baseUrl + '/videos/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + p.apiKey },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.id) return data.id;
+    const code = String((data && data.error && data.error.code) || '');
+    if (res.ok && ZHIPU_BUSY_CODES.has(code) && i < ZHIPU_RETRY_DELAYS.length) {
+      console.log('  [智谱排队] ' + t.id + ' 返回 ' + code + '，第 ' + (i + 1) + ' 次重试');
+      continue;
+    }
+    const err = new Error(upstreamError(data, res.status, p.name));
+    // 标记为"可退回队列"：排队/限流不是用户的错，也不该让任务直接失败
+    if (res.ok && ZHIPU_BUSY_CODES.has(code)) err.retryable = true;
+    throw err;
   }
 }
 
@@ -448,6 +517,12 @@ async function submitUpstream(t) {
       if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));
       id = data.video_id || data.id || data.task_id;
       if (!id) throw new Error('Agnes 未返回 video_id，响应：' + JSON.stringify(data).slice(0, 200));
+    } else if (p.name === 'zhipu') {
+      const body = buildUpstreamBody(t);
+      // 让任务卡显示真实输出参数（智谱按 size 档位出片）
+      t.params.resolution = body.size === '1920x1080' ? '1080p' : '720p';
+      t.upstream_model = body.model; // 查询接口虽不需要，但保留便于排查
+      id = await submitZhipuWithRetry(p, body, t);
     } else {
       const res = await fetchUpstream(p.baseUrl + '/contents/generations/tasks', {
         method: 'POST',
@@ -463,10 +538,28 @@ async function submitUpstream(t) {
     t.upstream_status = 'queued';
     t.next_poll_at = now() + 2000;
   } catch (e) {
-    // 提交失败：任务标记失败（上游未创建成功，不计费）
-    t.state = 'failed';
-    t.error = '提交上游失败：' + e.message;
-    t.finished_at = now();
+    if (e && e.retryable) {
+      // 上游排队/限流：不算失败，退回队列按退避时间再试（上限 10 次，约 20 分钟）
+      t.retry_count = (t.retry_count || 0) + 1;
+      if (t.retry_count > 10) {
+        t.state = 'failed';
+        t.error = '排队太久（已重试 10 次约 20 分钟）：' + e.message;
+        t.finished_at = now();
+      } else {
+        t.state = 'queued';
+        t.progress = 0;
+        t.retry_at = now() + Math.min(30000 * Math.pow(2, t.retry_count - 1), 180000);
+        t.queue_note = e.message;
+        t.upstream_status = 'queueing';
+        console.log('  [排队] ' + t.id + ' 第 ' + t.retry_count + ' 次退回队列，'
+          + Math.round((t.retry_at - now()) / 1000) + ' 秒后再试');
+      }
+    } else {
+      // 提交失败：任务标记失败（上游未创建成功，不计费）
+      t.state = 'failed';
+      t.error = '提交上游失败：' + e.message;
+      t.finished_at = now();
+    }
   } finally {
     t.submitting = false;
   }
@@ -485,6 +578,18 @@ function upstreamError(data, status, providerName) {
     }
     if (raw) return raw;
     return 'Agnes 服务异常（HTTP ' + status + '），请稍后再试';
+  }
+  if ((providerName || PROVIDER.name) === 'zhipu') {
+    const msg = (e && e.message) || '';
+    if (status === 401 || /invalid.*token|令牌|鉴权/i.test(msg)) {
+      return '智谱 API Key 无效或已过期（401）：到 open.bigmodel.cn → 「API Keys」重新复制一个';
+    }
+    if (msg.includes('访问量过大') || String((e && e.code) || '') === '1305') {
+      return '智谱免费模型排队人数太多（1305）：已自动重试 5 次仍未排上，过 1 分钟再试';
+    }
+    if (msg) return msg + (e.code ? '（' + e.code + '）' : '');
+    if (status === 429) return '智谱接口限流（429），请稍后再试';
+    return '智谱服务异常（HTTP ' + status + '）';
   }
   if (e && e.message) return e.message + (e.code ? '（' + e.code + '）' : '');
   if (typeof e === 'string') return e;
@@ -558,6 +663,14 @@ async function pollProviderTasks() {
         if (r.status === 'running' && typeof data.progress === 'number') {
           t.progress = clamp(data.progress * 0.85, 10, 85); // 用上游进度驱动进度条
         }
+      } else if (p.name === 'zhipu') {
+        // 智谱轮询：GET /async-result/{id}（实测一次 5 秒 720P 任务约 60 秒出结果）
+        const res = await fetch(p.baseUrl + '/async-result/' + encodeURIComponent(t.upstream_id), {
+          headers: { Authorization: 'Bearer ' + p.apiKey },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));
+        r = normalizeZhipuStatus(data);
       } else {
         const res = await fetch(p.baseUrl + '/contents/generations/tasks/' + encodeURIComponent(t.upstream_id), { headers: arkHeaders(p.apiKey) });
         const data = await res.json().catch(() => ({}));
@@ -603,6 +716,22 @@ function normalizeAgnesStatus(d) {
   return { status: 'queued', url: null, error: null };
 }
 
+/* 智谱任务状态：PROCESSING / SUCCESS / FAIL
+ * 成品在 video_result[0].url —— 是 UCloud 的临时签名链接（带 Expires），必须立刻下载到本地，
+ * 不能直接把这个 URL 下发前端（过期就打不开了）。 */
+function normalizeZhipuStatus(d) {
+  const s = String((d && d.task_status) || '').toUpperCase();
+  if (s === 'SUCCESS') {
+    const v = (d.video_result && d.video_result[0]) || {};
+    return { status: 'succeeded', url: v.url || null, error: null, usage: d.usage || null };
+  }
+  if (s === 'FAIL' || s === 'FAILED') {
+    const e = d.error;
+    return { status: 'failed', url: null, error: (e && (e.message || e)) || '智谱生成失败' };
+  }
+  return { status: 'running', url: null, error: null };
+}
+
 /* ---- Mock provider：本地模拟上游 API，供开发自测（不花钱、不出真片） ---- */
 const mockJobs = new Map();
 function mockSubmit(t) {
@@ -633,6 +762,8 @@ function tick() {
     .sort((a, b) => b.priority - a.priority || a.created_at - b.created_at);
   for (const t of queued) {
     if (running >= maxParallel) break;
+    // 上游排队/限流时任务会退回队列并设置 retry_at，时间没到就先跳过（不占并发名额）
+    if (t.retry_at && t.retry_at > now()) continue;
     startTask(t);
     running++;
   }
@@ -912,6 +1043,8 @@ function publicTask(t) {
     upstream_id: t.upstream_id,
     usage: t.usage,
     error: t.error,
+    queue_note: t.queue_note || null,   // 上游排队中给用户看的说明（不是错误）
+    retry_count: t.retry_count || 0,
   };
 }
 
@@ -1056,6 +1189,7 @@ async function route(req, res) {
     VOLC_API_KEY: { label: '火山方舟 API Key' },
     AGNES_API_KEY: { label: 'Agnes API Key' },
     AGNES_API_ROOT: { label: 'Agnes 接口地址' },
+    ZHIPU_API_KEY: { label: '智谱 BigModel API Key' },
   };
   if (method === 'POST' && pathname === '/api/keys') {
     const body = await readBody(req, res);

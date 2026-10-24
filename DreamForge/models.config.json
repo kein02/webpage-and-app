@@ -13,26 +13,38 @@
       "map": {
         "forge-v1-fast": {
           "upstream_model": "doubao-seedance-1-0-pro-250528",
-          "duration_range": [2, 12],
+          "duration_range": [
+            2,
+            12
+          ],
           "ratio": "adaptive",
           "generate_audio": false
         },
         "forge-v2-pro": {
           "upstream_model": "doubao-seedance-2-5-260628",
-          "duration_range": [4, 30],
+          "duration_range": [
+            4,
+            30
+          ],
           "ratio": "adaptive",
           "generate_audio": false
         },
         "forge-v25-sample": {
           "upstream_model": "doubao-seedance-2-5-260628",
-          "duration_range": [4, 30],
+          "duration_range": [
+            4,
+            30
+          ],
           "ratio": "adaptive",
           "generate_audio": false,
           "supports_draft": true
         },
         "forge-cine": {
           "upstream_model": "doubao-seedance-2-5-260628",
-          "duration_range": [4, 30],
+          "duration_range": [
+            4,
+            30
+          ],
           "ratio": "adaptive",
           "generate_audio": false
         }
@@ -47,23 +59,59 @@
       "map": {
         "forge-v1-fast": {
           "upstream_model": "agnes-video-2.5-flash",
-          "seconds_range": [4, 12],
+          "seconds_range": [
+            4,
+            12
+          ],
           "size": "720P"
         },
         "forge-v2-pro": {
           "upstream_model": "agnes-video-2.5-flash",
-          "seconds_range": [4, 12],
+          "seconds_range": [
+            4,
+            12
+          ],
           "size": "720P"
         },
         "forge-v25-sample": {
           "upstream_model": "agnes-video-2.5-flash",
-          "seconds_range": [4, 12],
+          "seconds_range": [
+            4,
+            12
+          ],
           "size": "720P"
         },
         "forge-cine": {
           "upstream_model": "agnes-video-2.5-flash",
-          "seconds_range": [4, 12],
+          "seconds_range": [
+            4,
+            12
+          ],
           "size": "720P"
+        }
+      }
+    },
+    "zhipu": {
+      "_note": "智谱 BigModel。CogVideoX-Flash 官方定价 0 元，且不占用新用户赠送的 2000 万 Token；免费档带水印、并发低、经常返回 1305『访问量过大』，代码里带指数退避重试。size 用 WxH 像素格式，fps 固定 30；实测 image_url 参数被接受（图生视频），duration 走默认 5 秒。",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "api_key_env": "ZHIPU_API_KEY",
+      "poll_interval_ms": 5000,
+      "map": {
+        "forge-v1-fast": {
+          "upstream_model": "cogvideox-flash",
+          "size": "1280x720",
+          "fps": 30
+        },
+        "forge-v2-pro": {
+          "upstream_model": "cogvideox-flash",
+          "size": "1920x1080",
+          "fps": 30
+        },
+        "forge-cine": {
+          "upstream_model": "cogvideox-flash",
+          "size": "1920x1080",
+          "fps": 30,
+          "duration": 10
         }
       }
     }
@@ -75,11 +123,24 @@
       "badge": "快",
       "tagline": "6 秒出片，适合快速试错",
       "speed_ms": 6000,
-      "supports": ["first_frame", "draft"],
+      "supports": [
+        "first_frame",
+        "draft"
+      ],
       "options": {
-        "duration_ms": [3000, 5000],
-        "resolution": ["480p", "720p"],
-        "steps": { "min": 10, "max": 30, "default": 16 }
+        "duration_ms": [
+          3000,
+          5000
+        ],
+        "resolution": [
+          "480p",
+          "720p"
+        ],
+        "steps": {
+          "min": 10,
+          "max": 30,
+          "default": 16
+        }
       }
     },
     {
@@ -88,11 +149,25 @@
       "badge": "推荐",
       "tagline": "10 秒出片，画质与速度均衡",
       "speed_ms": 10000,
-      "supports": ["first_frame", "draft"],
+      "supports": [
+        "first_frame",
+        "draft"
+      ],
       "options": {
-        "duration_ms": [5000, 8000, 10000],
-        "resolution": ["720p", "1080p"],
-        "steps": { "min": 10, "max": 41, "default": 24 }
+        "duration_ms": [
+          5000,
+          8000,
+          10000
+        ],
+        "resolution": [
+          "720p",
+          "1080p"
+        ],
+        "steps": {
+          "min": 10,
+          "max": 41,
+          "default": 24
+        }
       }
     },
     {
@@ -101,11 +176,23 @@
       "badge": "省钱",
       "tagline": "先出 480P 样片预览，满意再直出高清 —— 复刻即梦 Seedance 2.5 的样片策略",
       "speed_ms": 4000,
-      "supports": ["draft_only"],
+      "supports": [
+        "draft_only"
+      ],
       "options": {
-        "duration_ms": [5000, 10000],
-        "resolution": ["720p", "1080p"],
-        "steps": { "min": 10, "max": 41, "default": 16 }
+        "duration_ms": [
+          5000,
+          10000
+        ],
+        "resolution": [
+          "720p",
+          "1080p"
+        ],
+        "steps": {
+          "min": 10,
+          "max": 41,
+          "default": 16
+        }
       }
     },
     {
@@ -114,11 +201,23 @@
       "badge": "高质",
       "tagline": "14 秒出片，默认 28 步采样，电影感构图",
       "speed_ms": 14000,
-      "supports": ["first_frame"],
+      "supports": [
+        "first_frame"
+      ],
       "options": {
-        "duration_ms": [8000, 10000, 15000],
-        "resolution": ["1080p"],
-        "steps": { "min": 16, "max": 50, "default": 28 }
+        "duration_ms": [
+          8000,
+          10000,
+          15000
+        ],
+        "resolution": [
+          "1080p"
+        ],
+        "steps": {
+          "min": 16,
+          "max": 50,
+          "default": 28
+        }
       }
     }
   ]

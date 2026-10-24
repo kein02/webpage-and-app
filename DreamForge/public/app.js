@@ -47,6 +47,16 @@ const CHANNEL_FORM = {
       },
     ],
   },
+  zhipu: {
+    cta: '保存并切换到智谱',
+    fields: [
+      {
+        name: 'ZHIPU_API_KEY', label: 'API Key', type: 'password',
+        placeholder: '在 open.bigmodel.cn → API Keys 创建',
+        help: '免费档（CogVideoX-Flash）：0 元、带水印、5–10 秒；高峰期可能排队，会自动重试。',
+      },
+    ],
+  },
   agnes: {
     cta: '保存并切换到 Agnes',
     fields: [
@@ -110,7 +120,7 @@ function toast(msg, type) {
 /* ---------------- 访客自带 Key（公开部署） ----------------
  * 公网部署时服务器不存任何人的 Key。访客在通道面板填自己的 Key，只存在他自己
  * 浏览器的 localStorage，之后每个请求经头信息带给服务器（服务器零存储、零回显）。
- * 存储结构：{ active: 'agnes'|'volcengine'|'demo', agnes: {key, keyRoot}, volcengine: {key} } */
+ * 存储结构：{ active: 'agnes'|'zhipu'|'volcengine'|'demo', agnes: {key, keyRoot}, zhipu: {key}, volcengine: {key} } */
 const VISITOR_STORE = 'dreamforge_visitor';
 /* 匿名浏览器 ID：公开部署时任务按它归属——只看得到自己创建的任务，
  * 别人（包括部署者的测试任务）不会出现在你的列表里。本地模式服务端不理会这个值。 */
@@ -408,7 +418,8 @@ async function saveChannelKeys(name) {
   }
   if (config && config.public_mode) {
     // 公开模式：Key 只存访客浏览器（localStorage），服务器不存储——出片走他自己的额度
-    const keyName = name === 'volcengine' ? 'VOLC_API_KEY' : 'AGNES_API_KEY';
+    const KEY_ENV = { agnes: 'AGNES_API_KEY', zhipu: 'ZHIPU_API_KEY', volcengine: 'VOLC_API_KEY' };
+    const keyName = KEY_ENV[name] || 'AGNES_API_KEY';
     if (!vals[keyName]) {
       toast('请先填写要保存的 Key', 'warn');
       return;
@@ -470,7 +481,8 @@ function clearVisitorKey(name) {
   post('/api/channel', { channel: 'demo' })
     .then((r) => { applyProvider(r.provider, r.channels); renderChannelRows(); })
     .catch(() => {});
-  toast('已清除你保存的 ' + (name === 'agnes' ? 'Agnes' : '火山方舟') + ' Key', 'ok');
+  const NICE = { agnes: 'Agnes', zhipu: '智谱', volcengine: '火山方舟' };
+  toast('已清除你保存的 ' + (NICE[name] || name) + ' Key', 'ok');
 }
 
 function openChannelModal(focusChannel) {
@@ -700,7 +712,7 @@ function updateTaskCard(card, t) {
   const tag = card.querySelector('.state-tag');
   const cls = 'state-tag s-' + t.state;
   if (tag.className !== cls) tag.className = cls;
-  tag.textContent = STATE_LABEL[t.state] || t.state;
+  tag.textContent = (STATE_LABEL[t.state] || t.state) + (t.state === 'queued' && t.retry_count ? ' ×' + t.retry_count : '');
 
   const meta = card.querySelector('.tc-meta');
   // 注意：这里的值都会进 innerHTML，全部要转义——服务端虽已白名单化 resolution，
@@ -708,7 +720,10 @@ function updateTaskCard(card, t) {
   const parts = [escapeHtml(t.model_name), escapeHtml(t.params.resolution), (t.params.duration_ms / 1000) + 's', t.params.steps + ' 步'];
   if (t.draft) parts.push('样片');
   if (t.accelerated) parts.push('<span class="speedup">⚡ 已加速</span>');
-  if (RUNNING_STATES.includes(t.state)) {
+  if (t.state === 'queued' && t.queue_note) {
+    // 上游（智谱免费档等）在排队：如实告诉用户在等，而不是让进度条干挂着
+    parts.push('上游排队 · 第 ' + ((t.retry_count || 0) + 1) + ' 次重试');
+  } else if (RUNNING_STATES.includes(t.state)) {
     parts.push(t.eta_ms != null ? '剩余 ' + fmtEta(t.eta_ms) : '上游处理中…');
   } else if (t.state === 'done' || t.state === 'draft_ready' || t.state === 'finalized') {
     parts.push('进度 100%');
@@ -986,13 +1001,16 @@ function applyModeBadge(p) {
   if (p.name === 'agnes') {
     el.textContent = '🔥 真实出片 · Agnes AI';
     el.className = 'mode-badge ok';
+  } else if (p.name === 'zhipu') {
+    el.textContent = '🔥 真实出片 · 智谱（免费）';
+    el.className = 'mode-badge ok';
   } else if (p.name === 'volcengine') {
     el.textContent = '🔥 真实出片 · 火山方舟';
     el.className = 'mode-badge ok';
   } else if (p.name === 'mock') {
     el.textContent = 'Mock 测试';
     el.className = 'mode-badge warn';
-  } else if (p.requested === 'agnes' || p.requested === 'volcengine') {
+  } else if (['agnes', 'zhipu', 'volcengine'].includes(p.requested)) {
     el.textContent = '演示模式（未配置 Key）';
     el.className = 'mode-badge warn';
     toast('未检测到 API Key，当前为演示模式：' + (p.reason || ''), 'warn');
@@ -1008,6 +1026,7 @@ const FOOTER_BASE = '本工具为教学演示：复刻自即梦AI 的架构逆�
 const FOOTER_MODE = {
   demo: '当前为演示模式：生成结果为程序化 SVG 动画，不调用任何外部 AI 模型。',
   agnes: '当前为 Agnes AI 免费通道：正在调用真实模型生成 MP4（720P · 4–12 秒 · 每分钟 1 条，限时免费）。',
+  zhipu: '当前为智谱 CogVideoX 免费通道：正在调用真实模型生成 MP4（720P/1080P · 5–10 秒 · 0 元，成片带水印）。',
   volcengine: '当前为火山方舟通道：正在调用真实模型生成 MP4（支持首帧图 / 草稿样片，按量付费）。',
   mock: '当前为 Mock 自测模式：不调用外部服务，用本地样本视频模拟上游出片。',
 };
