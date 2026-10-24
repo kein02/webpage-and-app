@@ -1,81 +1,105 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<meta name="theme-color" content="#0a0e17">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>增肌助手 · 居家健身</title>
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DreamForge 造梦工坊 · 下载</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --line:#242833; --txt:#e8eaf0; --dim:#9aa3b2;
+    --acc:#6c8cff; --ok:#3ecf8e; --warn:#f0b429;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.7; padding:48px 20px 64px;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:30px;letter-spacing:.5px}
+  h1 span{color:var(--acc)}
+  .sub{color:var(--dim);margin-top:8px;font-size:15px}
+  .badge{display:inline-block;background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:3px 12px;font-size:13px;color:var(--dim);margin-top:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:20px 22px;margin-top:18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .ico{font-size:30px;line-height:1}
+  .info{flex:1;min-width:200px}
+  .info b{font-size:17px}
+  .info p{color:var(--dim);font-size:14px;margin-top:2px}
+  .btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none;
+    border-radius:10px;padding:10px 20px;font-size:15px;font-weight:600;white-space:nowrap}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);font-weight:500}
+  .btn:hover{filter:brightness(1.1)}
+  .note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--ok);
+    border-radius:10px;padding:16px 20px;margin-top:22px;font-size:14px;color:var(--dim)}
+  .note b{color:var(--txt)}
+  .note.warn{border-left-color:var(--warn)}
+  code{background:#0b0d11;border:1px solid var(--line);border-radius:6px;
+    padding:2px 7px;font-size:13px;color:#c8d3f5;word-break:break-all}
+  .foot{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);
+    color:#6b7382;font-size:13px}
+  a{color:var(--acc)}
+</style>
 </head>
 <body>
-<div class="app">
-  <div class="header">
-    <h1>增肌<span>助手</span></h1>
-  </div>
-  <div class="views">
-    <!-- PLAN VIEW -->
-    <div id="view-plan" class="view active">
-      <div id="plan-list"></div>
+<div class="wrap">
+
+  <h1>DreamForge <span>造梦工坊</span></h1>
+  <p class="sub">一个能读懂的 AI 视频生成工作台 · 零依赖 Node.js · 无需安装任何环境</p>
+  <span class="badge">当前版本 v1.1.0 · Windows / macOS 便携版</span>
+
+  <div class="card">
+    <div class="ico">🪟</div>
+    <div class="info">
+      <b>Windows 10 / 11</b>
+      <p>解压 → 双击 <code>start.bat</code> → 浏览器自动打开</p>
     </div>
-    <!-- WORKOUT VIEW -->
-    <div id="view-workout" class="view">
-      <div id="workout-content"></div>
-    </div>
-    <!-- EXERCISE LIBRARY VIEW -->
-    <div id="view-exercise" class="view">
-      <div id="ex-list"></div>
-      <div id="ex-detail-container"></div>
-    </div>
-    <!-- PROGRESS VIEW -->
-    <div id="view-progress" class="view">
-      <div id="progress-content"></div>
-    </div>
-    <!-- SETTINGS VIEW -->
-    <div id="view-settings" class="view">
-      <div id="settings-content"></div>
-    </div>
+    <a class="btn" href="./DreamForge-Portable-Windows-v1.1.0.zip" download>下载 Windows 版</a>
   </div>
 
-  <!-- Rest timer overlay -->
-  <div id="rest-overlay">
-    <span id="rt-num">60</span>
-    <p>秒后继续</p>
-    <button class="skip-btn" onclick="doSkipRest()">跳过休息</button>
+  <div class="card">
+    <div class="ico">🍎</div>
+    <div class="info">
+      <b>macOS（M1 / M2 / M3…）</b>
+      <p>解压 → 双击 <code>start.command</code>（首次需右键 → 打开）</p>
+    </div>
+    <a class="btn" href="./DreamForge-Portable-macOS-AppleSilicon-v1.1.0.zip" download>下载 macOS 版</a>
   </div>
 
-  <!-- Flash notification -->
-  <div id="rest-flash">休息完成！继续训练</div>
+  <div class="card">
+    <div class="ico">📦</div>
+    <div class="info">
+      <b>macOS（Intel）/ Linux / 想改代码</b>
+      <p>下载源码，用自己的 Node 18+ 运行 <code>node server.js</code></p>
+    </div>
+    <a class="btn ghost" href="https://github.com/kein02/webpage-and-app/archive/refs/heads/main.zip" download>下载源码</a>
+  </div>
 
-  <!-- Bottom nav -->
-  <nav class="bottom-nav">
-    <button class="nav-item active" id="nav-plan" onclick="navigateTo('plan')">
-      <span class="n-icon">📋</span>
-      <span>计划</span>
-    </button>
-    <button class="nav-item" id="nav-workout" onclick="navigateTo('workout')" style="display:none">
-      <span class="n-icon">🏋️</span>
-      <span>训练中</span>
-    </button>
-    <button class="nav-item" id="nav-exercise" onclick="navigateTo('exercise')">
-      <span class="n-icon">📖</span>
-      <span>动作库</span>
-    </button>
-    <button class="nav-item" id="nav-progress" onclick="navigateTo('progress')">
-      <span class="n-icon">📊</span>
-      <span>进度</span>
-    </button>
-    <button class="nav-item" id="nav-settings" onclick="navigateTo('settings')">
-      <span class="n-icon">⚙️</span>
-      <span>设置</span>
-    </button>
-  </nav>
+  <div class="note">
+    <b>不用装任何东西。</b>两个包里都已内置对应平台的 Node.js 运行时，解压后直接双击就能跑，
+    浏览器会自动打开 <code>http://localhost:3000</code>。
+    <br><b>演示模式完全免费</b>：不填任何 Key 就能完整体验任务流转；想产出真正的 MP4，
+    在页面顶栏「⇄ 切换通道」里粘贴你自己的 API Key 即可——Key 只存在你自己的电脑上。
+  </div>
+
+  <div class="note warn">
+    <b>macOS 首次启动</b>如果提示「无法验证开发者」，对着 <code>start.command</code>
+    右键 → 选「打开」→ 再点「打开」，只需做一次。
+    <br>完整使用说明在压缩包内的《使用说明》文件里。
+  </div>
+
+  <div class="note">
+    <b>打不开这个页面？</b>也可以走 GitHub Releases（需要能访问 github.com）：
+    <a href="https://github.com/kein02/webpage-and-app/releases/latest">releases/latest</a>。
+    项目源码与文档：<a href="https://github.com/kein02/webpage-and-app">github.com/kein02/webpage-and-app</a>
+  </div>
+
+  <div class="foot">
+    本项目为个人学习用途的架构分析演示，与即梦AI / 字节跳动无任何关联，非官方产品。
+    不提供任何共享 Key 或代出片服务。代码以 MIT 协议开源。
+  </div>
+
 </div>
-
-<script src="data.js"></script>
-<script src="db.js"></script>
-<script src="app.js"></script>
-<script>init();</script>
 </body>
 </html>
