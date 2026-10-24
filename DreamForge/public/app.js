@@ -47,6 +47,26 @@ const CHANNEL_FORM = {
       },
     ],
   },
+  siliconflow: {
+    cta: '保存并切换到硅基流动',
+    fields: [
+      {
+        name: 'SILICONFLOW_API_KEY', label: 'API Key', type: 'password',
+        placeholder: '在 cloud.siliconflow.cn → API 密钥 创建（sk- 开头）',
+        help: 'Wan 2.2：约 2 元/条（5 秒 720P），支持首帧图，注册送额度。',
+      },
+    ],
+  },
+  minimax: {
+    cta: '保存并切换到 MiniMax',
+    fields: [
+      {
+        name: 'MINIMAX_API_KEY', label: 'API Key', type: 'password',
+        placeholder: '在 platform.minimaxi.com → 接口密钥 创建',
+        help: '海螺 v2.3：约 ¥0.3/秒（768P），支持原生音频与首帧图。注意国内站 Key 与国际站不通用。',
+      },
+    ],
+  },
   zhipu: {
     cta: '保存并切换到智谱',
     fields: [
@@ -418,7 +438,7 @@ async function saveChannelKeys(name) {
   }
   if (config && config.public_mode) {
     // 公开模式：Key 只存访客浏览器（localStorage），服务器不存储——出片走他自己的额度
-    const KEY_ENV = { agnes: 'AGNES_API_KEY', zhipu: 'ZHIPU_API_KEY', volcengine: 'VOLC_API_KEY' };
+    const KEY_ENV = { agnes: 'AGNES_API_KEY', zhipu: 'ZHIPU_API_KEY', siliconflow: 'SILICONFLOW_API_KEY', minimax: 'MINIMAX_API_KEY', volcengine: 'VOLC_API_KEY' };
     const keyName = KEY_ENV[name] || 'AGNES_API_KEY';
     if (!vals[keyName]) {
       toast('请先填写要保存的 Key', 'warn');
@@ -481,7 +501,7 @@ function clearVisitorKey(name) {
   post('/api/channel', { channel: 'demo' })
     .then((r) => { applyProvider(r.provider, r.channels); renderChannelRows(); })
     .catch(() => {});
-  const NICE = { agnes: 'Agnes', zhipu: '智谱', volcengine: '火山方舟' };
+  const NICE = { agnes: 'Agnes', zhipu: '智谱', siliconflow: '硅基流动', minimax: 'MiniMax', volcengine: '火山方舟' };
   toast('已清除你保存的 ' + (NICE[name] || name) + ' Key', 'ok');
 }
 
@@ -1004,13 +1024,19 @@ function applyModeBadge(p) {
   } else if (p.name === 'zhipu') {
     el.textContent = '🔥 真实出片 · 智谱（免费）';
     el.className = 'mode-badge ok';
+  } else if (p.name === 'siliconflow') {
+    el.textContent = '🔥 真实出片 · 硅基流动 Wan';
+    el.className = 'mode-badge ok';
+  } else if (p.name === 'minimax') {
+    el.textContent = '🔥 真实出片 · MiniMax 海螺';
+    el.className = 'mode-badge ok';
   } else if (p.name === 'volcengine') {
     el.textContent = '🔥 真实出片 · 火山方舟';
     el.className = 'mode-badge ok';
   } else if (p.name === 'mock') {
     el.textContent = 'Mock 测试';
     el.className = 'mode-badge warn';
-  } else if (['agnes', 'zhipu', 'volcengine'].includes(p.requested)) {
+  } else if (['agnes', 'zhipu', 'siliconflow', 'minimax', 'volcengine'].includes(p.requested)) {
     el.textContent = '演示模式（未配置 Key）';
     el.className = 'mode-badge warn';
     toast('未检测到 API Key，当前为演示模式：' + (p.reason || ''), 'warn');
@@ -1027,6 +1053,8 @@ const FOOTER_MODE = {
   demo: '当前为演示模式：生成结果为程序化 SVG 动画，不调用任何外部 AI 模型。',
   agnes: '当前为 Agnes AI 免费通道：正在调用真实模型生成 MP4（720P · 4–12 秒 · 每分钟 1 条，限时免费）。',
   zhipu: '当前为智谱 CogVideoX 免费通道：正在调用真实模型生成 MP4（720P/1080P · 5–10 秒 · 0 元，成片带水印）。',
+  siliconflow: '当前为硅基流动 Wan 2.2 通道：正在调用真实模型生成 MP4（720P · 约 2 元/条，支持首帧图）。',
+  minimax: '当前为 MiniMax 海螺通道：正在调用真实模型生成 MP4（768P/1080P · 约 ¥0.3/秒，支持原生音频）。',
   volcengine: '当前为火山方舟通道：正在调用真实模型生成 MP4（支持首帧图 / 草稿样片，按量付费）。',
   mock: '当前为 Mock 自测模式：不调用外部服务，用本地样本视频模拟上游出片。',
 };

@@ -85,19 +85,19 @@ function resolveProvider(forceName, visitor) {
   if (choice === 'demo') return { name: 'demo', label: '演示模式', requested: 'demo', reason: '已强制指定演示模式' };
   // 汇总两个真实通道的配置与 Key 检测结果
   const vKey = visitor && visitor.apiKey ? visitor.apiKey : '';
-  const channels = ['agnes', 'zhipu', 'volcengine'].map((name) => {
+  const channels = ['agnes', 'zhipu', 'siliconflow', 'minimax', 'volcengine'].map((name) => {
     const c = PROVIDER_CONF[name] || {};
     const envName = c.api_key_env || (name === 'agnes' ? 'AGNES_API_KEY' : 'VOLC_API_KEY');
     const apiKey = vKey && (!visitor.channel || visitor.channel === name) ? vKey : (process.env[envName] || '');
     return { name, conf: c, envName, apiKey };
   });
   // 强制指定某个通道时只检测它的 Key；auto 时按 [agnes, volcengine] 顺序取第一个有 Key 的
-  const REAL_CHANNELS = ['agnes', 'zhipu', 'volcengine'];
+  const REAL_CHANNELS = ['agnes', 'zhipu', 'siliconflow', 'minimax', 'volcengine'];
   const wanted = REAL_CHANNELS.includes(choice) ? channels.filter((c) => c.name === choice) : channels;
   const ready = wanted.find((c) => c.apiKey);
   if (!ready) {
     const missing = wanted.map((c) => c.envName).join(' / ');
-    const wantName = REAL_CHANNELS.includes(choice) ? choice : 'agnes/zhipu/volcengine';
+    const wantName = REAL_CHANNELS.includes(choice) ? choice : 'agnes/zhipu/siliconflow/minimax/volcengine';
     return { name: 'demo', label: '演示模式', requested: wantName, reason: (visitor ? '还未填写 ' : '未在 .env 中检测到 ') + missing + (visitor ? '：在「切换通道」面板粘贴你自己的 Key 即可' : '，已回退演示模式') };
   }
   if (ready.name === 'agnes') {
@@ -125,6 +125,31 @@ function resolveProvider(forceName, visitor) {
       pollMs: ready.conf.poll_interval_ms || 5000,
       supports_first_frame: false, // image_url 只收公网图片地址，本地图转 dataURL 上游不认
       watermark: true,             // 免费档返回值带 _watermark 文件，属官方行为
+    };
+  }
+  if (ready.name === 'siliconflow') {
+    return {
+      name: 'siliconflow',
+      label: '真实出片 · 硅基流动 Wan 2.2',
+      requested: 'siliconflow',
+      reason: '',
+      apiKey: ready.apiKey,
+      baseUrl: process.env.SILICONFLOW_BASE_URL || ready.conf.base_url || 'https://api.siliconflow.cn/v1',
+      pollMs: ready.conf.poll_interval_ms || 4000,
+      supports_first_frame: true, // image 字段支持 data:image/...;base64
+      result_ttl_note: '结果链接仅 10 分钟有效，服务端会立刻下载落地',
+    };
+  }
+  if (ready.name === 'minimax') {
+    return {
+      name: 'minimax',
+      label: '真实出片 · MiniMax 海螺',
+      requested: 'minimax',
+      reason: '',
+      apiKey: ready.apiKey,
+      baseUrl: process.env.MINIMAX_BASE_URL || ready.conf.base_url || 'https://api.minimaxi.com',
+      pollMs: ready.conf.poll_interval_ms || 6000,
+      supports_first_frame: true, // first_frame_image（公网 URL）
     };
   }
   return {
@@ -199,6 +224,8 @@ function providerMap(modelKey, providerName) {
 const CHANNEL_DEFS = [
   { name: 'agnes', label: 'Agnes AI · 免费通道', cost: '限时免费：720P · 4–12 秒 · 每分钟 1 条（不支持本地首帧图）', supports_first_frame: false, key_env: 'AGNES_API_KEY' },
   { name: 'zhipu', label: '智谱 CogVideoX · 免费', cost: '0 元（带水印）：720P/1080P · 5–10 秒 · 高峰可能排队', supports_first_frame: false, key_env: 'ZHIPU_API_KEY' },
+  { name: 'siliconflow', label: '硅基流动 · Wan 2.2', cost: '约 2 元/条（5 秒 720P）：开源模型、支持首帧图、注册送额度', supports_first_frame: true, key_env: 'SILICONFLOW_API_KEY' },
+  { name: 'minimax', label: 'MiniMax · 海螺', cost: '约 ¥0.3/秒（768P）：原生音频、主体参考、失败不计费', supports_first_frame: true, key_env: 'MINIMAX_API_KEY' },
   { name: 'volcengine', label: '火山方舟 · Seedance', cost: '按量付费：支持首帧图 / 草稿样片 / 高清（新用户有免费额度）', supports_first_frame: true, key_env: 'VOLC_API_KEY' },
   { name: 'demo', label: '演示模式', cost: '零花费：程序化 SVG 演示，不出真片', supports_first_frame: true, key_env: null },
 ];
@@ -389,6 +416,8 @@ function buildUpstreamBody(t) {
   const map = providerMap(t.model_key, p.name) || {};
   if (p.name === 'agnes') return buildAgnesBody(t, map, p);
   if (p.name === 'zhipu') return buildZhipuBody(t, map, p);
+  if (p.name === 'siliconflow') return buildSiliconflowBody(t, map, p);
+  if (p.name === 'minimax') return buildMinimaxBody(t, map, p);
   const content = [{ type: 'text', text: t.prompt }];
   if (t.first_frame_data) {
     content.push({ type: 'image_url', image_url: { url: t.first_frame_data }, role: 'first_frame' });
@@ -442,6 +471,37 @@ function buildZhipuBody(t, map, p) {
     fps: map.fps || 30,
   };
   if (map.duration) body.duration = map.duration;
+  return body;
+}
+
+/* 硅基流动 Wan 2.2 请求体：
+ * - image_size 是固定档位 "1280x720" | "720x1280" | "960x960"（不是像素自由填）
+ * - image 支持公网 URL 或 data:image/...;base64 —— 所以本地首帧图可以直接传
+ * - 文生视频用 T2V 模型；带首帧图时配置里换 I2V 模型即可 */
+function buildSiliconflowBody(t, map, p) {
+  if (!map.upstream_model) throw new Error('模型 ' + t.model_key + ' 未配置硅基流动上游映射');
+  const body = {
+    model: map.upstream_model,
+    prompt: t.prompt,
+    image_size: map.image_size || '1280x720',
+  };
+  if (t.first_frame_data) body.image = t.first_frame_data; // dataURL 直接可用
+  return body;
+}
+
+/* MiniMax 海螺请求体（v2.3 扁平参数端点）：
+ * - duration 是 6 / 10（秒），resolution 是 "768P" / "1080P"
+ * - first_frame_image 只收公网 URL 或官方允许的图片 URL；本地 dataURL 上游不认
+ * - 成功后只返回 file_id，还要再调 /v1/files/retrieve 换 download_url */
+function buildMinimaxBody(t, map, p) {
+  if (!map.upstream_model) throw new Error('模型 ' + t.model_key + ' 未配置 MiniMax 上游映射');
+  const range = map.duration_range || [6, 10];
+  const body = {
+    model: map.upstream_model,
+    prompt: t.prompt,
+    duration: clamp(Math.round(t.params.duration_ms / 1000), range[0], range[1]),
+    resolution: map.resolution || '768P',
+  };
   return body;
 }
 
@@ -523,6 +583,36 @@ async function submitUpstream(t) {
       t.params.resolution = body.size === '1920x1080' ? '1080p' : '720p';
       t.upstream_model = body.model; // 查询接口虽不需要，但保留便于排查
       id = await submitZhipuWithRetry(p, body, t);
+    } else if (p.name === 'siliconflow') {
+      const body = buildUpstreamBody(t);
+      t.params.resolution = body.image_size === '960x960' ? '720p' : '720p';
+      t.upstream_model = body.model;
+      const res = await fetchUpstream(p.baseUrl + '/video/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + p.apiKey },
+        body: JSON.stringify(body),
+      }, '硅基流动 提交');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));
+      id = data.requestId || data.request_id;
+      if (!id) throw new Error('硅基流动未返回 requestId，响应：' + JSON.stringify(data).slice(0, 200));
+    } else if (p.name === 'minimax') {
+      const body = buildUpstreamBody(t);
+      t.params.duration_ms = body.duration * 1000;
+      t.params.resolution = String(body.resolution).toLowerCase();
+      t.upstream_model = body.model;
+      const res = await fetchUpstream(p.baseUrl + '/v1/video_generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + p.apiKey },
+        body: JSON.stringify(body),
+      }, 'MiniMax 提交');
+      const data = await res.json().catch(() => ({}));
+      const bizCode = data && data.base_resp && data.base_resp.status_code;
+      if (!res.ok || (bizCode !== undefined && bizCode !== 0)) {
+        throw new Error(upstreamError(data, res.status, p.name));
+      }
+      id = data.task_id;
+      if (!id) throw new Error('MiniMax 未返回 task_id，响应：' + JSON.stringify(data).slice(0, 200));
     } else {
       const res = await fetchUpstream(p.baseUrl + '/contents/generations/tasks', {
         method: 'POST',
@@ -578,6 +668,27 @@ function upstreamError(data, status, providerName) {
     }
     if (raw) return raw;
     return 'Agnes 服务异常（HTTP ' + status + '），请稍后再试';
+  }
+  if ((providerName || PROVIDER.name) === 'siliconflow') {
+    const code = (e && e.code) || (data && data.code);
+    if (status === 401 || /invalid token/i.test(raw)) {
+      return '硅基流动 API Key 无效（401）：到 cloud.siliconflow.cn → 「API 密钥」重新复制（sk- 开头）';
+    }
+    if (code === 50505 || status === 503) return '硅基流动模型服务过载（50505），请稍后再试';
+    if (status === 429) return '硅基流动限流（429）：当前套餐有 TPM 限制，稍后再试';
+    if (code === 20012) return '硅基流动参数不合法（20012）：' + (raw || '检查模型名 / image_size');
+    if (raw) return raw + (code ? '（' + code + '）' : '');
+    return '硅基流动服务异常（HTTP ' + status + '）';
+  }
+  if ((providerName || PROVIDER.name) === 'minimax') {
+    const br = (data && data.base_resp) || {};
+    const code = br.status_code;
+    const msg = br.status_msg || raw;
+    if (code === 1004 || status === 401) return 'MiniMax 鉴权失败（1004）：确认是国内站 platform.minimaxi.com 的 Key（国际站 Key 不通用）';
+    if (code === 1008) return 'MiniMax 余额不足（1008）：请先充值再试';
+    if (code === 2013) return 'MiniMax 参数不合法（2013）：' + (msg || '检查模型名、duration、resolution');
+    if (msg) return msg + (code ? '（' + code + '）' : '');
+    return 'MiniMax 服务异常（HTTP ' + status + '）';
   }
   if ((providerName || PROVIDER.name) === 'zhipu') {
     const msg = (e && e.message) || '';
@@ -663,6 +774,22 @@ async function pollProviderTasks() {
         if (r.status === 'running' && typeof data.progress === 'number') {
           t.progress = clamp(data.progress * 0.85, 10, 85); // 用上游进度驱动进度条
         }
+      } else if (p.name === 'siliconflow') {
+        // 硅基流动轮询：GET /video/status?requestId=xxx
+        const res = await fetch(p.baseUrl + '/video/status?requestId=' + encodeURIComponent(t.upstream_id), {
+          headers: { Authorization: 'Bearer ' + p.apiKey },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));
+        r = normalizeSiliconflowStatus(data);
+      } else if (p.name === 'minimax') {
+        // MiniMax 轮询：GET /v1/query/video_generation?task_id=xxx
+        const res = await fetch(p.baseUrl + '/v1/query/video_generation?task_id=' + encodeURIComponent(t.upstream_id), {
+          headers: { Authorization: 'Bearer ' + p.apiKey },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));
+        r = normalizeMinimaxStatus(data);
       } else if (p.name === 'zhipu') {
         // 智谱轮询：GET /async-result/{id}（实测一次 5 秒 720P 任务约 60 秒出结果）
         const res = await fetch(p.baseUrl + '/async-result/' + encodeURIComponent(t.upstream_id), {
@@ -687,7 +814,9 @@ async function pollProviderTasks() {
         t.progress = Math.min(85, 30 + (el - t.started_at) / 1000);
         t.eta_ms = null;
       } else if (r.status === 'succeeded') {
-        const url = r.url || (r.content && r.content.video_url);
+        let url = r.url || (r.content && r.content.video_url);
+        // MiniMax 成功只给 file_id，要再调一次 /v1/files/retrieve 换下载地址
+        if (!url && r.file_id) url = await resolveMinimaxFileUrl(p, r.file_id);
         if (!url) { failTask(t, '上游返回成功但没有视频地址'); continue; }
         await finishWithVideo(t, url, r.usage);
       } else if (r.status === 'failed' || r.status === 'expired') {
@@ -730,6 +859,47 @@ function normalizeZhipuStatus(d) {
     return { status: 'failed', url: null, error: (e && (e.message || e)) || '智谱生成失败' };
   }
   return { status: 'running', url: null, error: null };
+}
+
+/* 硅基流动：status 取 Succeed / Failed / InQueue / InProgress（大小写都兼容）
+ * 成品在 results[0].url，**有效期仅 10 分钟**，必须立刻下载落地，不能下发前端。 */
+function normalizeSiliconflowStatus(d) {
+  const st = String((d && d.status) || '').toLowerCase();
+  if (st === 'succeed' || st === 'succeeded' || st === 'success') {
+    const r0 = (d.results && d.results[0]) || {};
+    return { status: 'succeeded', url: r0.url || d.video_url || null, error: null, usage: null };
+  }
+  if (st === 'failed' || st === 'error') {
+    return { status: 'failed', url: null, error: d.reason || d.message || '硅基流动生成失败' };
+  }
+  if (st === 'inprogress' || st === 'in_progress' || st === 'running' || st === 'processing') {
+    return { status: 'running', url: null, error: null };
+  }
+  return { status: 'queued', url: null, error: null };
+}
+
+/* MiniMax：Preparing / Queueing / Processing / Success / Fail
+ * Success 时只返回 file_id，视频地址要再调 /v1/files/retrieve 获取。 */
+function normalizeMinimaxStatus(d) {
+  const st = String((d && d.status) || '').toLowerCase();
+  if (st === 'success') {
+    return { status: 'succeeded', url: d.download_url || null, file_id: d.file_id, error: null, usage: null };
+  }
+  if (st === 'fail' || st === 'failed') {
+    return { status: 'failed', url: null, error: d.error_message || 'MiniMax 生成失败' };
+  }
+  if (st === 'queueing' || st === 'preparing') return { status: 'queued', url: null, error: null };
+  if (st === 'processing') return { status: 'running', url: null, error: null };
+  return { status: 'queued', url: null, error: null };
+}
+
+async function resolveMinimaxFileUrl(p, fileId) {
+  const res = await fetch(p.baseUrl + '/v1/files/retrieve?file_id=' + encodeURIComponent(fileId), {
+    headers: { Authorization: 'Bearer ' + p.apiKey },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(upstreamError(data, res.status, p.name));
+  return (data.file && data.file.download_url) || null;
 }
 
 /* ---- Mock provider：本地模拟上游 API，供开发自测（不花钱、不出真片） ---- */
@@ -1190,6 +1360,8 @@ async function route(req, res) {
     AGNES_API_KEY: { label: 'Agnes API Key' },
     AGNES_API_ROOT: { label: 'Agnes 接口地址' },
     ZHIPU_API_KEY: { label: '智谱 BigModel API Key' },
+    SILICONFLOW_API_KEY: { label: '硅基流动 API Key' },
+    MINIMAX_API_KEY: { label: 'MiniMax 海螺 API Key' },
   };
   if (method === 'POST' && pathname === '/api/keys') {
     const body = await readBody(req, res);
