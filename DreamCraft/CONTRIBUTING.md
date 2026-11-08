@@ -12,6 +12,7 @@ Python 3.11+、Node.js 20.19+ 或 22.12+。安装后端依赖并执行 `npm ci`�
 python -m pip install -r app/backend/requirements.txt
 python -m pip install httpx playwright
 python -m playwright install chromium
+python scripts/version.py
 python tests/test_backend.py
 python tests/test_public_security.py
 python tests/test_modes.py local
@@ -24,3 +25,5 @@ python tests/test_release_browser.py
 仅改动相关模块，新增协议通过模拟响应验证；改动公开模式必须保留站长密钥隔离、内网请求限制及文件所属账号鉴权。应用当前只支持单 worker。
 
 提交前检查暂存清单，排除 `.env`、数据库、`.jwt-secret`、`.engine-key`、uploads、exports、运行日志和个人截图。安装器与 ZIP 放 GitHub Releases，不提交 Git。
+
+版本号由根目录 `VERSION` 管理，使用 `python scripts/version.py --set X.Y.Z` 同步 npm 元数据，并新增 `docs/releases/X.Y.Z.md`。自动打包、标签规则和发布步骤见 [Windows 发布流程](docs/windows.md#自动发布)。

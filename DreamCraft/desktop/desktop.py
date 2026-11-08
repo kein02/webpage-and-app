@@ -50,6 +50,7 @@ def main():
     root = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
     if not getattr(sys, 'frozen', False):
         sys.path.insert(0, str(root.parent / 'app' / 'backend'))
+    from version import VERSION
     frontend = root / 'frontend'
     if not getattr(sys, 'frozen', False):
         frontend = root.parent / 'app' / 'frontend' / 'dist'
@@ -143,7 +144,7 @@ def main():
     import tkinter as tk
     from tkinter import ttk, messagebox
     window = tk.Tk()
-    window.title('DreamCraft 1.0.0')
+    window.title('DreamCraft ' + VERSION)
     if (root / 'app.ico').exists():
         window.iconbitmap(str(root / 'app.ico'))
     window.geometry('440x230')

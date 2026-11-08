@@ -1,0 +1,112 @@
+name: DreamCraft Windows Release
+
+on:
+  push:
+    tags:
+      - 'dreamcraft-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dreamcraft-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: DreamCraft
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: DreamCraft/app/frontend/package-lock.json
+      - name: Validate version and tag
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            python scripts/version.py --tag $env:GITHUB_REF_NAME
+          } else {
+            python scripts/version.py
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Release version validation failed' }
+      - name: Install dependencies
+        run: |
+          python -m pip install -r app/backend/requirements.txt pyinstaller==6.22.3 httpx playwright
+          if ($LASTEXITCODE -ne 0) { throw 'Python dependencies failed' }
+          python -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Browser install failed' }
+          npm ci --prefix app/frontend
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend dependencies failed' }
+      - name: Backend regression
+        run: |
+          python tests/test_version.py
+          if ($LASTEXITCODE -ne 0) { throw 'Version tests failed' }
+          python tests/test_backend.py
+          if ($LASTEXITCODE -ne 0) { throw 'Backend tests failed' }
+          python tests/test_public_security.py
+          if ($LASTEXITCODE -ne 0) { throw 'Security tests failed' }
+      - name: Install Inno Setup
+        run: |
+          choco upgrade innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+      - name: Build installer and portable archive
+        run: ./desktop/build.ps1 -RequireInstaller -Compiler "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+      - name: Test installer and frozen application
+        run: ./tests/test_installer.ps1
+      - name: Test extracted portable archive
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          Expand-Archive -LiteralPath "releases/DreamCraft-Windows-$version-x64.zip" -DestinationPath build/portable-test
+          python desktop/test_desktop.py build/portable-test/DreamCraft/DreamCraft.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Portable application test failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DreamCraft-Windows
+          path: |
+            DreamCraft/releases/DreamCraft-Setup-*-x64.exe
+            DreamCraft/releases/DreamCraft-Windows-*-x64.zip
+            DreamCraft/releases/SHA256SUMS.txt
+            DreamCraft/releases/release-notes-*.md
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: DreamCraft-Windows-test-evidence
+          path: DreamCraft/tests/output/
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/dreamcraft-v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DreamCraft-Windows
+          path: release
+      - name: Verify and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS.txt
+          version="${GITHUB_REF_NAME#dreamcraft-v}"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --draft --latest=false \
+            --title "DreamCraft $version · Windows" --notes-file "release-notes-$version.md" \
+            "DreamCraft-Setup-$version-x64.exe" "DreamCraft-Windows-$version-x64.zip" \
+            SHA256SUMS.txt "release-notes-$version.md"
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest=false

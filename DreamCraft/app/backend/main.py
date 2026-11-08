@@ -12,6 +12,7 @@ import uuid, json, os, time, asyncio
 from collections import OrderedDict, deque
 from urllib.parse import urlsplit, unquote
 from contextlib import asynccontextmanager
+from version import VERSION
 
 # 数据目录：云上通过 DATA_DIR 指向持久卷（SQLite + 上传文件都放这里）
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -64,7 +65,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="dreamcraft", version="1.0", lifespan=lifespan)
+app = FastAPI(title="dreamcraft", version=VERSION, lifespan=lifespan)
 _rate_windows = OrderedDict()
 _inflight = {}
 

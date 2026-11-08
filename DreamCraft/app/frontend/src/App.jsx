@@ -111,7 +111,7 @@ export default function App() {
         <header className="app-topbar">
           <div className="topbar-location">
             <button ref={menuRef} className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={navOpen} aria-controls="navigation" onClick={() => setNavOpen(v => !v)} title="打开导航">{navOpen ? <X size={20} /> : <Menu size={20} />}</button>
-            <span className="topbar-brand">DreamCraft</span><span className="topbar-divider">/</span>
+            <span className="topbar-brand" title={`DreamCraft ${__APP_VERSION__}`}>DreamCraft <small>v{__APP_VERSION__}</small></span><span className="topbar-divider">/</span>
             <span>{isLogin ? '账号' : location.pathname === '/pricing' ? '会员与积分' : current?.label || '创作首页'}</span>
           </div>
           <div className="topbar-actions">

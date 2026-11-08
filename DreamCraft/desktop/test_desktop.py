@@ -14,6 +14,7 @@ from PIL import Image
 from playwright.sync_api import sync_playwright
 
 exe = Path(sys.argv[1]).resolve()
+version = (Path(__file__).resolve().parents[1] / 'VERSION').read_text(encoding='utf-8').strip()
 test_root = Path(__file__).resolve().parents[1] / 'tests' / 'output' / ('desktop-' + time.strftime('%Y%m%d-%H%M%S'))
 test_root.mkdir(parents=True)
 data = test_root / 'data'
@@ -66,6 +67,7 @@ def stop(proc, state):
 try:
     proc, state = start()
     base = state['url']
+    assert request(base + '/openapi.json')['info']['version'] == version
     assert request(base + '/api/runtime') == {'mode': 'local', 'default_engines': True, 'local_comfy_proxy': True}
     assert Path(request(base + '/api/desktop/status')['data_dir']) == data
     assert not request(base + '/api/biz/v1/asset/list')['assets']

@@ -1,7 +1,9 @@
 #ifndef AppSource
   #error AppSource must point to the frozen DreamCraft directory
 #endif
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  #error AppVersion must be provided by desktop/build.ps1
+#endif
 [Setup]
 AppId={{7B50A372-A404-4B9C-9D99-73DECF6F9058}
 AppName=DreamCraft 造梦工坊
@@ -24,7 +26,7 @@ SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
-VersionInfoVersion=1.0.0.0
+VersionInfoVersion={#AppVersion}.0
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"

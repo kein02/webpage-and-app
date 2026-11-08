@@ -4,7 +4,7 @@ Windows 10/11 x64 桌面包，原生启动窗口配合浏览器工作区。数�
 
 ## 使用
 
-安装版运行 `releases/DreamCraft-Setup-1.0.0-x64.exe`；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
+从 [1.0.1 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.1) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
 
 启动器自动打开浏览器，重复双击复用当前实例；关闭启动器停止服务。默认端口 17861，冲突时自动选择空闲端口。
 
@@ -15,12 +15,15 @@ Windows 10/11 x64 桌面包，原生启动窗口配合浏览器工作区。数�
 ```powershell
 python -m pip install -r app/backend/requirements.txt
 python -m pip install pyinstaller
+cd app/frontend
+npm ci
+cd ../..
 ./desktop/build.ps1 -Python python
 ```
 
-构建脚本使用项目相对路径。图标在 `desktop/app.ico`，EXE 版本信息在 `desktop/version.txt`，安装版本在 `desktop/installer.iss`。修改版本时两处同步。
+构建脚本使用项目相对路径。图标在 `desktop/app.ico`；`VERSION` 是应用版本来源，构建时自动生成 EXE 版本资源、安装器版本和文件名。网页顶栏、原生启动窗口和后端 OpenAPI 同步显示这个版本。
 
-安装器编译工具使用 Inno Setup，项目内路径 `tools/InnoSetup/ISCC.exe`。本机采用 NuGet 非官方分发包 Tools.InnoSetup 6.7.3，其中编译器 Authenticode 签名有效，签名者为 Pyrsys B.V.。语言文件来自 Inno Setup 官方源码仓库。构建产物在 `build`，可交付文件在 `releases`。缺少 Inno Setup 时仍可生成便携 ZIP。
+安装器编译工具使用 Inno Setup 6.5+，默认路径 `tools/InnoSetup/ISCC.exe`，或通过 `-Compiler 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'` 指定。语言文件来自 Inno Setup 官方源码仓库。构建产物在 `build`，可交付文件在 `releases`。缺少 Inno Setup 时仍可生成便携 ZIP；发布构建必须传 `-RequireInstaller`，缺少编译器直接失败。
 
 安装回归：`./tests/test_installer.ps1 -Python python`。详细验证范围见 [Windows 验收](windows-acceptance.md)。
 
@@ -28,4 +31,26 @@ python -m pip install pyinstaller
 
 打包必须排除数据库、密钥和私人作品。发布时只上传安装器、便携 ZIP、校验文件和版本说明。项目源目录包含本机运行数据，不能整体压缩后公开。
 
-发布目标为 [dreamcraft-v1.0.0](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.0)，与同仓库 DreamForge 的版本独立。自动更新和数字签名暂不包含在 1.0.0。
+### 自动发布
+
+仓库根目录 `.github/workflows/dreamcraft-release.yml` 使用 GitHub 的 Windows runner。推送 `dreamcraft-v*` 标签后，校验版本与更新说明、安装依赖、运行后端和安全测试、构建安装版与便携版、检查安装/卸载和便携包。通过后上传安装器、ZIP、SHA256SUMS.txt 和版本说明到对应 Release。构建期间不调用付费接口或开发者本机 ComfyUI，只使用模拟接口。
+
+在仓库根目录操作，以下以未来的 `1.0.2` 为例：
+
+```powershell
+python DreamCraft/scripts/version.py --set 1.0.2
+# 新增 DreamCraft/docs/releases/1.0.2.md，记录本次变化
+python DreamCraft/scripts/version.py --tag dreamcraft-v1.0.2
+git add DreamCraft
+git commit -m "Release DreamCraft 1.0.2"
+git push origin main
+# 等待 DreamCraft 常规检查通过，再创建标签
+git tag dreamcraft-v1.0.2
+git push origin dreamcraft-v1.0.2
+```
+
+版本采用 `主版本.次版本.修订号`：不兼容变化增加主版本，新功能增加次版本，修复增加修订号。`--set` 同步 VERSION 和 npm 元数据；标签与 VERSION 不一致或缺少说明会阻止发布。已发布标签不要移动，修复后使用新的版本号。
+
+仅想试跑构建时，可在 GitHub Actions 中手动运行 **DreamCraft Windows Release**，选择 main。分支上的手动运行只生成可下载构建产物，不创建 Release。若在标签上手动运行，则会尝试发布该标签；已有 Release 会阻止重复创建。
+
+DreamCraft 使用独立标签，不改变同仓库 DreamForge 的最新版本标记。更新说明保存在 [docs/releases](releases)。当前没有自动更新及数字签名。

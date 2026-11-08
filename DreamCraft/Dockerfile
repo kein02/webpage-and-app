@@ -1,6 +1,7 @@
 FROM node:22-alpine AS frontend
 WORKDIR /frontend
 COPY app/frontend/package*.json ./
+COPY VERSION /VERSION
 RUN npm ci
 COPY app/frontend/ ./
 RUN npm run build
@@ -21,6 +22,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # 拷贝后端代码
 COPY app/backend/*.py /app/
+COPY VERSION /app/VERSION
 COPY --from=frontend /frontend/dist /frontend
 ENV FRONTEND_DIST=/frontend
 

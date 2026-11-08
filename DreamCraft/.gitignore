@@ -83,7 +83,7 @@ app/backend/uploads/
 app/backend/exports/
 **/.engine-key
 build/
-releases/
+/releases/
 local-data/
 tests/output/
 tools/

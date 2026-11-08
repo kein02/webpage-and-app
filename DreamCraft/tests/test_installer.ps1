@@ -1,6 +1,7 @@
 param([string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+$version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim()
 $testRoot = Join-Path $root ('tests\output\installer-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $installDir = Join-Path $testRoot 'installed'
 $desktopLink = Join-Path ([Environment]::GetFolderPath('Desktop')) 'DreamCraft.lnk'
@@ -18,16 +19,16 @@ try {
     $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/LANG=chinesesimplified',
         ('/DIR="' + $installDir + '"'), '/TASKS=desktopicon',
         ('/LOG="' + (Join-Path $testRoot 'install.log') + '"'))
-    $setup = Start-Process -FilePath (Join-Path $root 'releases\DreamCraft-Setup-1.0.0-x64.exe') -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
+    $setup = Start-Process -FilePath (Join-Path $root "releases\DreamCraft-Setup-$version-x64.exe") -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
     if ($setup.ExitCode -ne 0) { throw "Installation failed: $($setup.ExitCode)" }
     $exe = Join-Path $installDir 'DreamCraft.exe'
-    if ((Get-Item -LiteralPath $exe).VersionInfo.ProductVersion -ne '1.0.0') { throw 'Incorrect EXE version' }
+    if ((Get-Item -LiteralPath $exe).VersionInfo.ProductVersion -ne $version) { throw 'Incorrect EXE version' }
     $shell = New-Object -ComObject WScript.Shell
     foreach ($link in @($desktopLink, (Join-Path $menuDir 'DreamCraft.lnk'))) {
         if (!(Test-Path -LiteralPath $link)) { throw "Shortcut missing: $link" }
         if ($shell.CreateShortcut($link).TargetPath -ne $exe) { throw 'Incorrect shortcut target' }
     }
-    if ((Get-ItemProperty $registryKey).DisplayVersion -ne '1.0.0') { throw 'Incorrect installed version' }
+    if ((Get-ItemProperty $registryKey).DisplayVersion -ne $version) { throw 'Incorrect installed version' }
     Write-Output 'PASS installer: version, desktop shortcut and start menu shortcut'
     & $Python (Join-Path $root 'desktop\test_desktop.py') $exe
     if ($LASTEXITCODE -ne 0) { throw 'Installed executable regression failed' }
