@@ -60,7 +60,7 @@ python -m venv .venv
 
 节点是否齐全以 `/object_info` 为准，文件放到磁盘上不等于引擎已经识别。重启 ComfyUI 后再测试。Z-Image 的自定义量化权重及节点并非所有官方安装都自带，首次接入无需安装这一档。
 
-浏览器直连通过名称识别含 `sdxl`/`sd_xl` 的 checkpoint、含 `lightning` 的 LoRA，Z-Image 三个文件名必须匹配表格。后端默认精确匹配上述 SDXL 文件名，源码模式可通过 `SDXL_CKPT`、`SDXL_LORA`、`ZIMAGE_UNET`、`ZIMAGE_CLIP`、`ZIMAGE_VAE` 指定其他兼容文件名；这些变量不会改变浏览器直连的识别规则。
+浏览器直连与后端均可识别名称含 `sdxl`/`sd_xl` 的 checkpoint、含 `lightning` 的 LoRA，Z-Image 三个文件名默认匹配表格。源码模式可通过 `SDXL_CKPT`、`SDXL_LORA`、`ZIMAGE_UNET`、`ZIMAGE_CLIP`、`ZIMAGE_VAE` 指定其他兼容文件名；后端优先使用已安装的指定 SDXL 文件，未匹配时再按名称识别。这些变量不会改变浏览器直连的识别规则。
 
 ## 本机源码指定引擎
 
