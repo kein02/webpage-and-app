@@ -2,7 +2,7 @@
 
 面向个人创作者的图像、视频与素材工作区，支持 Windows 安装版和网页自部署，接入自己的 ComfyUI 或云端 API。
 
-[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.1) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
+[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.2) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
 
 ![DreamCraft 3D 创作工作区](docs/screenshots/home-desktop-3d-final.png)
 
@@ -10,13 +10,13 @@
 
 | 方式 | 下载或运行 | 要求 |
 |---|---|---|
-| Windows 安装版 | [DreamCraft-Setup-1.0.1-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.1/DreamCraft-Setup-1.0.1-x64.exe) | Windows 10/11 x64，无需 Python/Node |
-| Windows 便携版 | [DreamCraft-Windows-1.0.1-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.1/DreamCraft-Windows-1.0.1-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
+| Windows 安装版 | [DreamCraft-Setup-1.0.2-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.2/DreamCraft-Setup-1.0.2-x64.exe) | Windows 10/11 x64，无需 Python/Node |
+| Windows 便携版 | [DreamCraft-Windows-1.0.2-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.2/DreamCraft-Windows-1.0.2-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
 | 网页自部署 | `docker compose up -d --build` | 在本目录执行，需要 Docker/Compose |
 
 Windows 首次启动后注册登录，进入「引擎设置」，连接自己的 ComfyUI 或填 API Key，再生成一张低分辨率图片验证。程序不包含模型、公共算力或作者的密钥。安装包带中文向导、桌面快捷方式、图标和版本号；卸载保留个人数据。当前无自动更新和数字签名。
 
-Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 下载新版安装包或替换便携文件，Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.0.1-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
+Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 下载新版安装包或替换便携文件，Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.0.2-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
 
 > [!IMPORTANT]
 > 本目录是 React/FastAPI 版 DreamCraft。仓库中的 DreamForge 是独立的 Node.js 项目，两者的安装包、数据和配置不能混用。GitHub Pages 无法运行本项目的完整后端。
@@ -62,7 +62,7 @@ python serve.py --mode local --port 8102
 python serve.py --mode public --port 8103
 ```
 
-开发热更新使用 `python run.py`，前端 5173、后端 8100。该脚本可以复用已启动的 ComfyUI Desktop。`stop.py --app` 停止开发端口；不要用无参数的 `stop.py` 停掉正在使用的 ComfyUI。
+开发热更新使用 `python run.py`，前端 5173、后端 8100。该脚本可以复用已启动的 ComfyUI Desktop。`python stop.py` 默认仅停止网页服务，保留 ComfyUI；自定义后端端口可传 `--port`，只有显式传 `--comfy` 才同时停止 8188。
 
 ## 功能与边界
 
@@ -88,6 +88,8 @@ python serve.py --mode public --port 8103
 ```powershell
 python tests/test_backend.py
 python tests/test_public_security.py
+python tests/test_version.py
+python tests/test_stop.py
 python tests/test_modes.py local
 python tests/test_modes.py public
 python tests/test_release_browser.py

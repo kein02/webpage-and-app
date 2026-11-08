@@ -39,6 +39,7 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [user, setUser] = useState(null)
+  const [authToken, setAuthToken] = useState(getToken)
   const [navOpen, setNavOpen] = useState(false)
   const mainRef = useRef(null)
   const menuRef = useRef(null)
@@ -51,6 +52,7 @@ export default function App() {
     let cancelled = false
     const refresh = () => {
       const token = getToken()
+      setAuthToken(token)
       if (!token) { setUser(null); return }
       api.me().then(r => { if (!cancelled && token === getToken()) setUser(r.anon ? null : r) }).catch(() => {})
     }
@@ -127,7 +129,7 @@ export default function App() {
         </header>
         {!isHome && <div className="workspace-atmosphere"><StarField density={0.28} meteors={false} /></div>}
         <main id="workspace" ref={mainRef} className={`workspace-main ${isHome ? 'home-main' : 'tool-main'}`} tabIndex={-1}>
-          <div key={`${location.pathname}:${user?.user_id || user?.username || 'anon'}`} className={`route-view ${isHome ? 'home-view' : ''}`}>
+          <div key={`${location.pathname}:${authToken}`} className={`route-view ${isHome ? 'home-view' : ''}`}>
             <Routes>
               <Route path="/login" element={<Login onLogin={setUser} />} />
               <Route path="/ai-tool/home" element={<Home onOpen={navigate} />} />

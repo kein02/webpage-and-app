@@ -101,5 +101,5 @@ if args.mode == 'local' and env_file.exists():
 
 print(f"[start] mode={args.mode} -> http://{'127.0.0.1' if args.mode == 'local' else '0.0.0.0'}:{PORT}")
 print(f"[url]   本机访问 http://127.0.0.1:{PORT}")
-print(f"[tip]   停止：Ctrl+C 或 python stop.py")
+print(f"[tip]   停止：Ctrl+C 或 python stop.py --port {PORT}")
 subprocess.run([sys.executable, "main.py"], cwd=str(BACKEND), env=env)

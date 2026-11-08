@@ -15,6 +15,7 @@ export function assetUrl(u) {
 }
 
 let runtimePromise
+let logoutPending = Promise.resolve()
 export function getRuntime() {
   if (!runtimePromise) runtimePromise = get('/api/runtime').catch(error => { runtimePromise = null; throw error })
   return runtimePromise
@@ -46,7 +47,7 @@ export function setToken(t) {
   if (previous !== (t || '')) {
     localStorage.removeItem('dc_engine_local')
     sessionStorage.removeItem('dc_media_token')
-    if (!t) fetch(BASE + '/api/auth/logout', { method: 'POST' }).catch(() => {})
+    if (!t) logoutPending = fetch(BASE + '/api/auth/logout', { method: 'POST' }).catch(() => {})
   }
   if (t) localStorage.setItem('dc_token', t)
   else localStorage.removeItem('dc_token')
@@ -58,28 +59,33 @@ function authHeaders() {
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
-async function readResponse(r, url) {
+async function readResponse(r, url, requestToken) {
+  if (requestToken !== getToken()) throw new Error('账号已切换，请重新操作')
   if (!r.ok) {
     let msg = `${url} -> ${r.status}`
     try { const d = await r.json(); if (d.detail) msg = typeof d.detail === 'string' ? d.detail : d.detail.map(e => e.msg).join('；') } catch {}
-    if (r.status === 401 && getToken()) setToken('')
+    if (r.status === 401 && requestToken === getToken() && requestToken) setToken('')
     throw new Error(msg)
   }
   const data = await r.json()
-  if (data.media_token) sessionStorage.setItem('dc_media_token', data.media_token)
+  if (requestToken !== getToken()) throw new Error('账号已切换，请重新操作')
+  if (data.media_token && url === '/api/auth/me') sessionStorage.setItem('dc_media_token', data.media_token)
   return data
 }
 
 async function post(url, body) {
+  if (url === '/api/auth/login' || url === '/api/auth/register') await logoutPending
+  const requestToken = getToken()
   return readResponse(await fetch(BASE + url, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
-  }), url)
+  }), url, requestToken)
 }
 
 async function get(url) {
+  const requestToken = getToken()
   const r = await fetch(BASE + url, { headers: authHeaders() })
-  return readResponse(r, url)
+  return readResponse(r, url, requestToken)
 }
 
 export const api = {
@@ -104,13 +110,15 @@ export const api = {
 
   // 上传 / 素材
   uploadFile: async (file) => {
+    const requestToken = getToken()
     const s = await api.uploadSign()
+    if (requestToken !== getToken()) throw new Error('账号已切换，请重新操作')
     const form = new FormData()
     form.append('file', file)
     const up = await fetch(BASE + `/api/upload/${s.upload_key}`, {
       method: 'POST', body: form, headers: authHeaders(),
     })
-    return readResponse(up, '上传图片')
+    return readResponse(up, '上传图片', requestToken)
   },
   uploadSign: () => post('/api/biz/v1/common/get_upload_sign', {}),
   assetCreate: (body) => post('/api/biz/v1/asset/create_v2', body),
@@ -151,9 +159,13 @@ export const api = {
   teamAddMember: (tid, body) => post(`/api/biz/v1/team/${tid}/members`, body),
   teamSetRole: (tid, mid, role) => post(`/api/biz/v1/team/${tid}/members/${mid}/role`, { role }),
   teamSetPlan: (tid, plan) => post(`/api/biz/v1/team/${tid}/plan`, { plan }),
-  teamRemoveMember: (tid, mid) => fetch(BASE + `/api/biz/v1/team/${tid}/members/${mid}`, {
-    method: 'DELETE', headers: authHeaders(),
-  }).then((r) => readResponse(r, '移除成员')),
+  teamRemoveMember: async (tid, mid) => {
+    const requestToken = getToken()
+    const response = await fetch(BASE + `/api/biz/v1/team/${tid}/members/${mid}`, {
+      method: 'DELETE', headers: authHeaders(),
+    })
+    return readResponse(response, '移除成员', requestToken)
+  },
 
   // 商业化
   commerceEntrances: () => get('/lv/v1/commerce/get_entrances'),
@@ -166,5 +178,6 @@ export const api = {
 // 页面用：登录成功后存 token
 export function afterLogin(r) {
   setToken(r.token)
+  if (r.media_token) sessionStorage.setItem('dc_media_token', r.media_token)
   api.me().catch(() => {})
 }

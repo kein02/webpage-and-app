@@ -4,7 +4,7 @@ Windows 10/11 x64 桌面包，原生启动窗口配合浏览器工作区。数�
 
 ## 使用
 
-从 [1.0.1 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.1) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
+从 [1.0.2 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.2) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
 
 启动器自动打开浏览器，重复双击复用当前实例；关闭启动器停止服务。默认端口 17861，冲突时自动选择空闲端口。
 
@@ -35,18 +35,18 @@ cd ../..
 
 仓库根目录 `.github/workflows/dreamcraft-release.yml` 使用 GitHub 的 Windows runner。推送 `dreamcraft-v*` 标签后，校验版本与更新说明、安装依赖、运行后端和安全测试、构建安装版与便携版、检查安装/卸载和便携包。通过后上传安装器、ZIP、SHA256SUMS.txt 和版本说明到对应 Release。构建期间不调用付费接口或开发者本机 ComfyUI，只使用模拟接口。
 
-在仓库根目录操作，以下以未来的 `1.0.2` 为例：
+在仓库根目录操作，以下以未来的 `1.0.3` 为例：
 
 ```powershell
-python DreamCraft/scripts/version.py --set 1.0.2
-# 新增 DreamCraft/docs/releases/1.0.2.md，记录本次变化
-python DreamCraft/scripts/version.py --tag dreamcraft-v1.0.2
+python DreamCraft/scripts/version.py --set 1.0.3
+# 新增 DreamCraft/docs/releases/1.0.3.md，记录本次变化
+python DreamCraft/scripts/version.py --tag dreamcraft-v1.0.3
 git add DreamCraft
-git commit -m "Release DreamCraft 1.0.2"
+git commit -m "Release DreamCraft 1.0.3"
 git push origin main
 # 等待 DreamCraft 常规检查通过，再创建标签
-git tag dreamcraft-v1.0.2
-git push origin dreamcraft-v1.0.2
+git tag dreamcraft-v1.0.3
+git push origin dreamcraft-v1.0.3
 ```
 
 版本采用 `主版本.次版本.修订号`：不兼容变化增加主版本，新功能增加次版本，修复增加修订号。`--set` 同步 VERSION 和 npm 元数据；标签与 VERSION 不一致或缺少说明会阻止发布。已发布标签不要移动，修复后使用新的版本号。

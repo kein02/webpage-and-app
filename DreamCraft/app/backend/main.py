@@ -110,7 +110,7 @@ def _engine_error(error, uid):
 
 
 def _store_image_data(url):
-    if RUN_MODE != 'public' or not url.startswith('data:' + 'image/'):
+    if not url.startswith('data:' + 'image/'):
         return url
     import base64, io
     from PIL import Image
@@ -719,7 +719,7 @@ async def _matting(request: Request, image_url: str, tag: str, provider=None) ->
                 return {"status": "success", "mask_url": r["mask_url"],
                         "result_url": result_url, "engine": r["engine"]}
         except Exception as e:
-            raise HTTPException(502, f"抠图失败：{str(e)[:180]}")
+            raise HTTPException(502, f"抠图失败：{_engine_error(e, _uid(request))[:180]}")
     raise HTTPException(400, "当前引擎不支持抠图，请连接安装了背景移除模型的 ComfyUI")
 
 
@@ -764,7 +764,7 @@ async def _edit_generate(body, request, prompt=None, reference=True, **kwargs):
             kwargs['mask_image'] = body.mask_url
         result = await provider.generate_image(prompt=prompt or body.prompt or "refine details",
             ref_image=body.image_url if reference else None, model=body.params.get("model", "default"), **kwargs)
-        url = result["results"][0]["url"]
+        url = await asyncio.to_thread(_store_image_data, result["results"][0]["url"])
         wallet.add_asset(url, owner=uid, kind="image", prompt=body.prompt or "")
         return {"status": "success", "result_url": url}
     except Exception as e:
@@ -840,7 +840,7 @@ async def super_resolution(body: EditIn, request: Request):
         image = Image.open(io.BytesIO(read_image_bytes(body.image_url)))
         resolution = min(4096, max(256, int(body.params.get("resolution", 2048))))
         scale = resolution / max(image.size)
-        image = image.resize((round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS)
+        image = image.resize((max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.Resampling.LANCZOS)
         filename = "upscale_" + uuid.uuid4().hex + ".png"
         image.save(os.path.join(EXPORT_DIR, filename))
         url = "/exports/" + filename
@@ -886,8 +886,10 @@ async def agent_submit_run(body: AgentRunIn, request: Request):
         reply = f"已根据「{last}」生成画面。"
     try:
         img = await provider.generate_image(prompt=last, model="default")
-        if not img.get("results"):
+        if not img.get("results") or not all(item.get('url') for item in img['results']):
             raise RuntimeError("引擎没有返回图片")
+        for item in img['results']:
+            item['url'] = await asyncio.to_thread(_store_image_data, item['url'])
     except Exception as e:
         _task_update(task_id, status="failed", error=_engine_error(e, uid)[:300], finished_at=int(time.time()))
         if needs_charge:
@@ -1074,15 +1076,17 @@ async def drama_create_script(body: DramaIn):
 @app.post("/lv/v1/short_drama/shot_to_video")
 async def drama_shot_to_video(body: dict, background=False, request: Request = None):
     shot = body.get("shot", {})
+    if not isinstance(shot, dict):
+        raise HTTPException(400, '分镜格式无效')
     uid = _uid(request) if request else "anon"
     platform, vkey, vbase, vmodel, _ = _video_platform_for(uid)
     if not platform or not vkey:
         raise HTTPException(400, "未配置视频平台：请在「引擎设置」里选择平台并填 key")
     prompt = shot.get("prompt", body.get("prompt", ""))
-    if not isinstance(prompt, str) or not prompt.strip():
+    if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 10000:
         raise HTTPException(400, '分镜提示词不能为空')
     duration = body.get('duration', 5)
-    if not isinstance(duration, (float, int)) or not 1 <= duration <= 15:
+    if isinstance(duration, bool) or not isinstance(duration, (float, int)) or not 1 <= duration <= 15:
         raise HTTPException(400, '视频时长必须在 1 至 15 秒之间')
     loop = asyncio.get_event_loop()
 
@@ -1127,8 +1131,15 @@ async def drama_shot_to_video(body: dict, background=False, request: Request = N
 @app.post("/lv/v1/short_drama/render_all")
 async def drama_render_all(body: dict, request: Request):
     shots = body.get("shots", [])
-    if not isinstance(shots, list) or not 1 <= len(shots) <= 20 or any(not isinstance(s, dict) or not s.get("prompt") for s in shots):
+    if not isinstance(shots, list) or not 1 <= len(shots) <= 20 or any(not isinstance(s, dict) or not isinstance(s.get('prompt'), str) or not s['prompt'].strip() or len(s['prompt']) > 10000 for s in shots):
         raise HTTPException(400, "请先生成有效的分镜脚本（1 至 20 个镜头）")
+    duration = body.get('duration', 5)
+    if isinstance(duration, bool) or not isinstance(duration, (float, int)) or not 1 <= duration <= 15:
+        raise HTTPException(400, '视频时长必须在 1 至 15 秒之间')
+    uid = _uid(request)
+    source = _video_platform_for(uid)[4]
+    if source == 'server' and wallet.get_balance(uid) < wallet.COST['video'] * len(shots):
+        raise HTTPException(402, '积分不足以提交全部分镜')
     if RUN_MODE == 'public':
         active = store.active()
         if sum(t['owner'] == _uid(request) for t in active) + len(shots) > 6 or len(active) + len(shots) > 32:

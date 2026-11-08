@@ -15,7 +15,7 @@
 """
 import json, time, urllib.request, urllib.error, os, base64
 from urllib.parse import urlencode
-from providers import open_remote
+from providers import open_remote, read_image_bytes
 
 # 平台注册表：base_url / 提交路径 / 查询路径 / 默认模型
 PLATFORMS = {
@@ -114,6 +114,13 @@ def submit(platform, key, prompt, ref_image=None, model=None, base_url=None, dur
     cfg = PLATFORMS[platform]
     base = (base_url or cfg["base"]).rstrip("/")
     m = model or cfg["model"]
+    if ref_image and ref_image.startswith(('/uploads/', '/exports/')):
+        import io
+        from PIL import Image
+        image = Image.open(io.BytesIO(read_image_bytes(ref_image)))
+        output = io.BytesIO()
+        image.convert('RGB').save(output, 'PNG')
+        ref_image = 'data:' + 'image/png;base64,' + base64.b64encode(output.getvalue()).decode()
 
     if platform == "agnes":
         body = {"model": m, "prompt": prompt,

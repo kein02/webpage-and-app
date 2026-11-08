@@ -72,7 +72,7 @@ $env:SDXL_CKPT = 'sd_xl_base_1.0.safetensors'
 python serve.py --mode local --port 8102
 ```
 
-开发启动器 `run.py` 可以复用已运行的 ComfyUI；自动启动的个人默认路径不一定适用于其他电脑，可设置 `COMFYUI_HOME`、`COMFYUI_BASE`，或先手动启动 ComfyUI。不需要使用原作者的 E 盘目录。不要运行无参数 `stop.py`，它会连同 8188 服务一起停止；只停止开发网页用 `python stop.py --app`。
+开发启动器 `run.py` 可以复用已运行的 ComfyUI；自动启动的个人默认路径不一定适用于其他电脑，可设置 `COMFYUI_HOME`、`COMFYUI_BASE`，或先手动启动 ComfyUI。不需要使用原作者的 E 盘目录。`python stop.py` 默认只停止开发网页并保留 ComfyUI；使用自定义后端端口时传 `--port`。确需同时停止 8188 时显式使用 `--comfy`。
 
 ## 公网/局域网
 

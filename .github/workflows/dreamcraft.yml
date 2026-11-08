@@ -29,6 +29,7 @@ jobs:
           cache-dependency-path: DreamCraft/app/frontend/package-lock.json
       - run: python scripts/version.py
       - run: python tests/test_version.py
+      - run: python tests/test_stop.py
       - run: python -m pip install -r app/backend/requirements.txt httpx playwright
       - run: python -m playwright install --with-deps chromium
       - run: npm ci && npm run build

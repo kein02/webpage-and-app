@@ -185,6 +185,25 @@ class PublicTests(unittest.TestCase):
             self.assertEqual(response.status_code, 502)
             self.assertFalse(main._inflight)
 
+    def test_agent_and_edit_data_results_are_private_files(self):
+        provider = providers.AgnesProvider()
+        provider.generate_image = AsyncMock(side_effect=lambda **kwargs: {'results': [{'url': 'data:' + 'image/png;base64,' + base64.b64encode(png()).decode()}]})
+        with patch.object(main, '_provider_for', return_value=provider):
+            for endpoint, body, result_path in [
+                ('/api/biz/v1/agent/submit_run', {'messages': [{'role': 'user', 'content': 'draw'}]}, ('result', 'image', 'results', 0, 'url')),
+                ('/lv/v1/editor/image/inpaint', {'image_url': 'data:' + 'image/png;base64,' + base64.b64encode(png()).decode(), 'mask_url': 'data:' + 'image/png;base64,' + base64.b64encode(png()).decode()}, ('result_url',)),
+            ]:
+                response = self.client.post(endpoint, headers=self.a, json=body)
+                self.assertEqual(response.status_code, 200, response.text)
+                value = response.json()
+                for key in result_path:
+                    value = value[key]
+                self.assertTrue(value.startswith('/exports/'), value[:30])
+                self.assertEqual(self.client.get(value, headers=self.a).status_code, 200)
+                self.assertEqual(self.client.get(value, headers=self.b).status_code, 404)
+        assets = self.client.get('/api/biz/v1/asset/list', headers=self.a).json()['assets']
+        self.assertFalse(any(asset['url'].startswith('data:') for asset in assets))
+
     def test_video_refresh_and_persistence(self):
         uid = self.users[0]['user_id']
         main.userconfig.save(uid, video_platform='agnes', video_key='fake-video-key')

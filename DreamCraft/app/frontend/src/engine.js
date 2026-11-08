@@ -110,6 +110,7 @@ export async function comfyGenerate(base, engine, {
   const vae = meta.id === 'z-image-turbo' ? ['3', 0] : ['3', 2]
   if (refImage) {
     const image = await fetch(refImage)
+    if (!image.ok) throw new Error('参考图片读取失败：' + image.status)
     const upload = new FormData()
     upload.append('image', await image.blob(), 'reference.png')
     const response = await comfyFetch(root, '/upload/image', { method: 'POST', body: upload })
@@ -252,10 +253,13 @@ export async function routeGenerate({
 }) {
   const local = getLocalEngine()
   const ownerToken = getToken()
+  const ensureOwner = () => { if (getToken() !== ownerToken) throw new Error('账号已切换，请重新操作') }
 
   // 1. 本机 ComfyUI
   if (local.comfyui_url && await comfyReachable(local.comfyui_url)) {
+    ensureOwner()
     const { engines } = await comfyEngines(local.comfyui_url)
+    ensureOwner()
     if (engines.length) {
       const engine = engines.some(e => e.id === model) ? model
         : (engines.some(e => e.id === local.default_engine) ? local.default_engine : engines[0].id)
@@ -268,6 +272,7 @@ export async function routeGenerate({
   }
   // 2. 用户 Agnes key
   if (local.agnes_key) {
+    ensureOwner()
     const result = await agnesGenerate(local.agnes_key, local.agnes_root,
       { prompt, refImage, aspectRatio, resolution, seed, n })
     const warning = await saveLocalResults(result.results, prompt, ownerToken)
@@ -275,6 +280,7 @@ export async function routeGenerate({
              results: result.results ?? [], engine: result.engine, warning }
   }
   // 3. 服务器后端兜底
+  ensureOwner()
   const body = {
     prompt, model: model || 'default',
     ref_image: refImage, aspect_ratio: aspectRatio,

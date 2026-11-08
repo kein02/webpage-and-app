@@ -123,22 +123,49 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(Image.open(io.BytesIO(providers.read_image_bytes(r.json()["result_url"]))).size, (256, 192))
         with patch.object(main, "_provider_for", return_value=Provider()):
             self.assertEqual(self.client.post("/lv/v1/editor/image/interactive_matting", json={"image_url": data}).status_code, 400)
+        narrow = io.BytesIO()
+        Image.new('RGB', (1, 1024), 'red').save(narrow, 'PNG')
+        response = self.client.post('/lv/v1/editor/image/super_resolution', json={'image_url': 'data:' + 'image/png;base64,' + base64.b64encode(narrow.getvalue()).decode(), 'params': {'resolution': 256}}, headers=self.headers[0])
+        self.assertEqual(response.status_code, 200, response.text)
 
     def test_comfy_workflows(self):
         async def run():
             p = providers.ComfyUIProvider()
             p._has_sdxl = lambda: True
             p._has_lightning = lambda: True
+            p._sdxl_checkpoint = lambda: 'renamed_sdxl.safetensors'
+            p._lightning_lora = lambda: 'custom_lightning.safetensors'
             p._upload_image = lambda _: "reference.png"
             p._run = AsyncMock(return_value=["one", "two"])
             with patch.object(providers, "_mirror_to_exports", side_effect=lambda u: u):
                 await p.generate_image(prompt="test", model="sdxl", n=2)
                 self.assertEqual(p._run.call_args.args[0]["4"]["inputs"]["batch_size"], 2)
+                self.assertEqual(p._run.call_args.args[0]['3']['inputs']['ckpt_name'], 'renamed_sdxl.safetensors')
                 await p.generate_image(prompt="test", model="sdxl", ref_image="reference", n=2)
                 wf = p._run.call_args.args[0]
                 self.assertEqual(wf["4"]["class_type"], "VAEEncode")
                 self.assertEqual(wf["11"]["inputs"]["amount"], 2)
         asyncio.run(run())
+
+    def test_comfy_discovers_installed_sdxl_names(self):
+        provider = providers.ComfyUIProvider()
+        provider._opts = lambda node, field: {
+            'ckpt_name': ['custom_sdxl_v2.safetensors'],
+            'lora_name': ['custom_lightning_4step.safetensors'],
+        }.get(field, [])
+        self.assertTrue(provider._has_sdxl())
+        self.assertTrue(provider._has_lightning())
+        workflow = provider._workflow_sdxl('test', 512, 512, 1, 4, 1)
+        self.assertEqual(workflow['3']['inputs']['ckpt_name'], 'custom_sdxl_v2.safetensors')
+
+    def test_drama_validates_entire_batch_before_submission(self):
+        with patch.object(main, '_video_platform_for', return_value=('agnes', 'fake', None, None, 'user')), patch.object(main.video_platforms, 'generate_blocking') as generate:
+            for shots in ([{'prompt': 'valid'}, {'prompt': '   '}], [{'prompt': 'valid'}, {'prompt': 12}], [{'prompt': 'valid'}, {'prompt': 'x' * 10001}]):
+                before = len(main.store.list(500))
+                response = self.client.post('/lv/v1/short_drama/render_all', headers=self.headers[0], json={'shots': shots})
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(len(main.store.list(500)), before)
+            generate.assert_not_called()
 
     def test_commerce_and_validation(self):
         self.assertEqual(self.client.post('/lv/v1/commerce/recharge', json={'amount': 100}, headers=self.headers[0]).status_code, 503)
@@ -172,6 +199,9 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(post.call_args.args[1], {'requestId': 'task'})
         with patch.object(v, '_get', return_value={'status': 'completed'}):
             self.assertEqual(v.poll('agnes', 'fake', 'task')['status'], 'failed')
+        with patch.object(v, 'read_image_bytes', return_value=image_data()), patch.object(v, '_post', return_value={'video_id': 'task'}) as post:
+            v.submit('agnes', 'fake', 'test', ref_image='/uploads/reference.png')
+            self.assertTrue(post.call_args.args[1]['image'].startswith('data:' + 'image/png;base64,'))
 
     def test_comfy_proxy_is_scoped(self):
         with patch.object(main, '_BYOK_ONLY', False):

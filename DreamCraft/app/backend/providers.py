@@ -249,11 +249,19 @@ class ComfyUIProvider:
 
     def _has_sdxl(self) -> bool:
         """SDXL checkpoint 是否可用。"""
-        return SDXL_CKPT in self._opts("CheckpointLoaderSimple", "ckpt_name")
+        return bool(self._sdxl_checkpoint())
+
+    def _sdxl_checkpoint(self):
+        options = self._opts('CheckpointLoaderSimple', 'ckpt_name')
+        return SDXL_CKPT if SDXL_CKPT in options else next((name for name in options if 'sdxl' in name.lower() or 'sd_xl' in name.lower()), None)
+
+    def _lightning_lora(self):
+        options = self._opts('LoraLoaderModelOnly', 'lora_name')
+        return SDXL_LORA if SDXL_LORA in options else next((name for name in options if 'lightning' in name.lower()), None)
 
     def _has_lightning(self) -> bool:
         """Lightning 4-step LoRA 是否可用（快速草稿的关键）。"""
-        return SDXL_LORA in self._opts("LoraLoaderModelOnly", "lora_name")
+        return bool(self._lightning_lora())
 
     def available_engines(self) -> list:
         """返回当前可用的出图档位，前端下拉用。"""
@@ -279,7 +287,7 @@ class ComfyUIProvider:
                        lora=None, scheduler="normal"):
         """SDXL 工作流；lora 传入则挂 LoraLoaderModelOnly（Lightning 4 步）。"""
         wf = {
-            "3": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SDXL_CKPT}},
+            "3": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": self._sdxl_checkpoint()}},
             "4": {"class_type": "EmptyLatentImage",
                   "inputs": {"width": w, "height": h, "batch_size": 1}},
             "5": {"class_type": "KSampler",
@@ -398,10 +406,12 @@ class ComfyUIProvider:
             want = self._force_engine or next((e["id"] for e in engines if e["id"] == "sdxl-draft"), engines[0]["id"] if engines else "none")
 
         if want == "sdxl-draft":
+            if not await loop.run_in_executor(None, self._has_sdxl):
+                raise RuntimeError(f"缺少 SDXL checkpoint（{SDXL_CKPT}）")
             if not await loop.run_in_executor(None, self._has_lightning):
                 raise RuntimeError(f"缺少 Lightning LoRA（{SDXL_LORA}），无法用草稿档")
             wf = self._workflow_sdxl(prompt, w, h, seed, SDXL_DRAFT_STEPS,
-                                     SDXL_DRAFT_CFG, lora=SDXL_LORA, scheduler="sgm_uniform")
+                                     SDXL_DRAFT_CFG, lora=self._lightning_lora(), scheduler="sgm_uniform")
             engine = "sdxl-draft"
         elif want == "sdxl":
             if not await loop.run_in_executor(None, self._has_sdxl):

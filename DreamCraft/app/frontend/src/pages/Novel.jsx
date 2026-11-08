@@ -49,16 +49,16 @@ export default function Novel() {
     try {
     const r = await api.dramaScript({ theme: theme || '赛博朋克都市', shots: 6 })
     setShots(r.shots)
-    setTaskIds([]); setStatus({}); setFinalVideo(null)
+    setTaskIds([]); setStatus({}); setFinalVideo(null); setFinalMeta(null)
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
 
   const renderAll = async () => {
-    setBusy(true)
+    setBusy(true); setError('')
     try {
       const r = await api.dramaRenderAll({ shots, duration: 5 })
       setTaskIds(r.task_ids ?? [])
-      setFinalVideo(null)
+      setStatus({}); setFinalVideo(null); setFinalMeta(null)
     } catch (e) {
       setError('提交失败：' + e.message)
     } finally {
@@ -70,7 +70,7 @@ export default function Novel() {
   const allDone = taskIds.length > 0 && taskIds.every((tid) => ['succeed', 'failed'].includes(status[tid]?.status))
 
   const compose = async () => {
-    setComposing(true)
+    setComposing(true); setError('')
     try {
       // 逐镜头字幕（用分镜 prompt 截断）+ 可选 BGM
       const subs = shots.map((s) => ({ text: (s.prompt || '').slice(0, 20) }))
@@ -78,7 +78,7 @@ export default function Novel() {
         task_ids: taskIds, prompt: theme,
         subtitles: subs,
       })
-      setFinalVideo(assetUrl(r.url))
+      setFinalVideo(r.url)
       setFinalMeta(r)
     } catch (e) {
       setError('合成失败：' + e.message)
@@ -108,7 +108,7 @@ export default function Novel() {
               {s.prompt}
             </div>
           ))}
-          <button onClick={renderAll} disabled={busy}
+          <button onClick={renderAll} disabled={busy || composing || (taskIds.length > 0 && !allDone)}
             className="w-full rounded-lg bg-brand-500 py-2 text-sm font-medium disabled:opacity-50">
             {busy ? '提交中…' : taskIds.length ? '重新提交全部' : '全部提交渲染'}
           </button>
@@ -122,7 +122,7 @@ export default function Novel() {
           </h2>
           {taskIds.map((id, i) => <div key={id} className="text-xs text-ink-dim">镜头 {i + 1}：{status[id]?.status === 'failed' ? status[id].error : status[id]?.status === 'succeed' ? '已完成' : '生成中'}</div>)}
           {allDone && done.length > 0 && (
-            <button onClick={compose} disabled={composing}
+            <button onClick={compose} disabled={composing || busy}
               className="w-full rounded-lg bg-green-600 py-2 text-sm font-medium disabled:opacity-50">
               {composing ? 'ffmpeg 合成中…' : '合成完整成片'}
             </button>
@@ -139,8 +139,8 @@ export default function Novel() {
           <h2 className="text-sm text-ink-dim mb-2">
             完整成片{finalMeta?.subtitles ? '（含字幕）' : ''}{finalMeta?.has_bgm ? '（含 BGM）' : ''}
           </h2>
-          <video src={finalVideo} controls className="w-full rounded-lg bg-black" />
-          <a href={finalVideo} className="text-xs text-brand-500">下载 mp4</a>
+          <video src={assetUrl(finalVideo)} controls className="w-full rounded-lg bg-black" />
+          <a href={assetUrl(finalVideo)} download className="text-xs text-brand-500">下载 mp4</a>
         </section>
       )}
     </div>
