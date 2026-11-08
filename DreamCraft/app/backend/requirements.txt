@@ -1,0 +1,7 @@
+fastapi==0.141.1
+uvicorn==0.52.1
+pydantic==2.13.4
+PyJWT==2.15.1
+python-multipart==0.0.33
+pillow==12.3.0
+cryptography>=46.0.0,<48

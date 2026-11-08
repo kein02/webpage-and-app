@@ -1,0 +1,17 @@
+services:
+  dreamcraft:
+    build: .
+    restart: unless-stopped
+    environment:
+      DREAMCRAFT_MODE: public
+      DATA_DIR: /data
+      NO_LOCAL_ENV: '1'
+      COMFYUI_DISABLE: '1'
+      BYOK_ONLY: '1'
+      PORT: '8100'
+    volumes:
+      - dreamcraft-data:/data
+    ports:
+      - "127.0.0.1:8100:8100"
+volumes:
+  dreamcraft-data:

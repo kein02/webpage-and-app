@@ -1,0 +1,43 @@
+name: DreamCraft
+on:
+  push:
+    paths:
+      - 'DreamCraft/**'
+      - '.github/workflows/dreamcraft.yml'
+  pull_request:
+    paths:
+      - 'DreamCraft/**'
+      - '.github/workflows/dreamcraft.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: DreamCraft
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: DreamCraft/app/frontend/package-lock.json
+      - run: python -m pip install -r app/backend/requirements.txt httpx playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: npm ci && npm run build
+        working-directory: DreamCraft/app/frontend
+      - run: npm audit --audit-level=moderate
+        working-directory: DreamCraft/app/frontend
+      - run: python tests/test_backend.py
+      - run: python tests/test_public_security.py
+      - run: python tests/test_modes.py local
+      - run: python tests/test_modes.py public
+      - run: python tests/test_release_browser.py
+      - run: docker compose config --quiet
+      - run: docker build -t dreamcraft:ci .
+      - run: python tests/test_container.py dreamcraft:ci
