@@ -5,6 +5,10 @@
   #error AppVersion must be provided by desktop/build.ps1
 #endif
 [Setup]
+#ifdef SignRelease
+SignTool=dreamcraft
+SignedUninstaller=yes
+#endif
 AppId={{7B50A372-A404-4B9C-9D99-73DECF6F9058}
 AppName=DreamCraft 造梦工坊
 AppVersion={#AppVersion}

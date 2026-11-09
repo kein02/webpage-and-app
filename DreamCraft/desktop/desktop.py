@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import queue
 from pathlib import Path
 import secrets
 import socket
@@ -147,7 +148,7 @@ def main():
     window.title('DreamCraft ' + VERSION)
     if (root / 'app.ico').exists():
         window.iconbitmap(str(root / 'app.ico'))
-    window.geometry('440x230')
+    window.geometry('480x330')
     window.resizable(False, False)
     frame = ttk.Frame(window, padding=24)
     frame.pack(fill='both', expand=True)
@@ -157,6 +158,95 @@ def main():
     open_button = ttk.Button(frame, text='打开工作区', command=lambda: webbrowser.open(url), state='disabled')
     open_button.pack(fill='x')
     ttk.Button(frame, text='打开数据目录', command=lambda: os.startfile(data)).pack(fill='x', pady=6)
+    update_text = ttk.Label(frame, text='版本 ' + VERSION, wraplength=420)
+    update_text.pack(anchor='w', pady=(8, 6))
+    update_events = queue.Queue()
+    update_state = {'release': None, 'busy': False}
+    import updater
+    app_dir = Path(sys.executable).resolve().parent
+    frozen = bool(getattr(sys, 'frozen', False))
+
+    def background(operation):
+        update_state['busy'] = True
+        update_button.configure(state='disabled')
+        def work():
+            try:
+                update_events.put(('done', operation()))
+            except Exception as error:
+                print('Update failed:', type(error).__name__, str(error))
+                update_events.put(('error', '更新未完成，请稍后重试。当前版本仍可使用。'))
+        threading.Thread(target=work, daemon=True).start()
+
+    def check_update():
+        if update_state['busy'] or closing.is_set():
+            return
+        update_text.configure(text='正在检查新版本……')
+        def operation():
+            kind = 'installed' if updater.installed(app_dir) else 'portable'
+            return ('checked', updater.check(VERSION, kind))
+        background(operation)
+
+    def update_action():
+        release = update_state['release']
+        if not release:
+            check_update()
+            return
+        new_version = release['tag_name'].removeprefix('dreamcraft-v')
+        if not messagebox.askyesno('DreamCraft 更新',
+                f'下载并升级到 {new_version}？\n下载完成后会关闭本机服务，请先保存正在编辑的内容。\n账号、引擎设置和作品会保留。'):
+            return
+        update_text.configure(text='正在下载更新……')
+        def operation():
+            def progress(received, total):
+                update_events.put(('progress', f'正在下载更新 {received * 100 // total}%'))
+            plan = updater.prepare(release, VERSION, app_dir, data,
+                                   root / 'apply-update.ps1', progress, no_browser=args.no_browser)
+            helper_process = updater.launch(plan)
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                if (plan.parent / 'ready').exists():
+                    return ('installing', None)
+                if helper_process.poll() is not None:
+                    raise RuntimeError('Update helper rejected package: ' + str(plan.parent))
+                time.sleep(.1)
+            helper_process.terminate()
+            raise TimeoutError('Update helper startup timeout')
+        background(operation)
+
+    update_button = ttk.Button(frame, text='检查更新', command=update_action)
+    update_button.pack(fill='x')
+    if not frozen:
+        update_button.configure(state='disabled')
+        update_text.configure(text='版本 ' + VERSION + ' · 源码版请通过 Git 更新')
+
+    def poll_updates():
+        if closing.is_set():
+            return
+        while True:
+            try:
+                event, value = update_events.get_nowait()
+            except queue.Empty:
+                break
+            if event == 'progress':
+                update_text.configure(text=value)
+            elif event == 'error':
+                update_state['busy'] = False
+                update_button.configure(state='normal')
+                update_text.configure(text=value)
+            elif event == 'done':
+                update_state['busy'] = False
+                action, result = value
+                if action == 'installing':
+                    close()
+                    return
+                update_state['release'] = result
+                update_button.configure(state='normal', text='下载并更新' if result else '检查更新')
+                text = '当前已是最新版本'
+                if result:
+                    text = '发现新版本 ' + result['tag_name'].removeprefix('dreamcraft-v')
+                update_text.configure(text=text)
+        window.after(150, poll_updates)
+
     def close():
         closing.set()
         if server_holder:
@@ -181,6 +271,9 @@ def main():
         else:
             window.after(100, poll)
     window.after(100, poll)
+    window.after(150, poll_updates)
+    if frozen and os.environ.get('DREAMCRAFT_UPDATE_CHECK', '1') != '0':
+        window.after(2000, check_update)
     window.mainloop()
     sock.close()
     lock.close()

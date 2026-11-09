@@ -59,12 +59,31 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Backend tests failed' }
           python tests/test_public_security.py
           if ($LASTEXITCODE -ne 0) { throw 'Security tests failed' }
+          python tests/test_updater.py
+          if ($LASTEXITCODE -ne 0) { throw 'Updater tests failed' }
       - name: Install Inno Setup
         run: |
           choco upgrade innosetup --no-progress -y
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
       - name: Build installer and portable archive
-        run: ./desktop/build.ps1 -RequireInstaller -Compiler "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+        env:
+          SIGN_CERT_BASE64: ${{ secrets.DREAMCRAFT_SIGN_CERT_BASE64 }}
+          DREAMCRAFT_SIGN_CERT_PASSWORD: ${{ secrets.DREAMCRAFT_SIGN_CERT_PASSWORD }}
+          REQUIRE_SIGNATURE: ${{ vars.DREAMCRAFT_REQUIRE_SIGNATURE }}
+        run: |
+          $certificateFile = Join-Path $env:RUNNER_TEMP 'dreamcraft-signing.pfx'
+          try {
+            if ($env:SIGN_CERT_BASE64) {
+              [IO.File]::WriteAllBytes($certificateFile, [Convert]::FromBase64String($env:SIGN_CERT_BASE64))
+              $env:DREAMCRAFT_SIGN_PFX = $certificateFile
+            }
+            ./desktop/build.ps1 -RequireInstaller -RequireSignature:($env:REQUIRE_SIGNATURE -eq 'true') -Compiler "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          } finally {
+            if (Test-Path -LiteralPath $certificateFile) { Remove-Item -LiteralPath $certificateFile }
+            Remove-Item Env:\DREAMCRAFT_SIGN_PFX -ErrorAction SilentlyContinue
+            Remove-Item Env:\SIGN_CERT_BASE64 -ErrorAction SilentlyContinue
+            Remove-Item Env:\DREAMCRAFT_SIGN_CERT_PASSWORD -ErrorAction SilentlyContinue
+          }
       - name: Test installer and frozen application
         run: ./tests/test_installer.ps1
       - name: Test extracted portable archive
@@ -73,6 +92,24 @@ jobs:
           Expand-Archive -LiteralPath "releases/DreamCraft-Windows-$version-x64.zip" -DestinationPath build/portable-test
           python desktop/test_desktop.py build/portable-test/DreamCraft/DreamCraft.exe
           if ($LASTEXITCODE -ne 0) { throw 'Portable application test failed' }
+      - name: Test real upgrades from published 1.0.3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $baseline = 'build/update-baseline'
+          gh release download dreamcraft-v1.0.3 --dir $baseline --pattern '*1.0.3*x64*' --pattern 'SHA256SUMS.txt'
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline download failed' }
+          foreach ($line in Get-Content "$baseline/SHA256SUMS.txt") {
+            $digest, $name = $line -split '  ', 2
+            if ($name -notin @('DreamCraft-Setup-1.0.3-x64.exe', 'DreamCraft-Windows-1.0.3-x64.zip')) { throw 'Unexpected baseline asset' }
+            if ((Get-FileHash "$baseline/$name" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $digest) { throw 'Baseline checksum failed' }
+          }
+          Expand-Archive "$baseline/DreamCraft-Windows-1.0.3-x64.zip" "$baseline/portable"
+          python tests/test_update_handoff.py $baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Portable upgrade failed' }
+          python tests/test_update_handoff.py $baseline --installed
+          if ($LASTEXITCODE -ne 0) { throw 'Installed upgrade failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: DreamCraft-Windows

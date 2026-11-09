@@ -15,6 +15,8 @@ from playwright.sync_api import sync_playwright
 
 exe = Path(sys.argv[1]).resolve()
 version = (Path(__file__).resolve().parents[1] / 'VERSION').read_text(encoding='utf-8').strip()
+if '--version' in sys.argv:
+    version = sys.argv[sys.argv.index('--version') + 1]
 test_root = Path(__file__).resolve().parents[1] / 'tests' / 'output' / ('desktop-' + time.strftime('%Y%m%d-%H%M%S'))
 test_root.mkdir(parents=True)
 data = test_root / 'data'
@@ -23,6 +25,7 @@ for field in ('AGNES_API_KEY', 'AGNES_API_TOKEN', 'APIHUB_AGNES_API_KEY', 'AGNES
               'DREAMCRAFT_CONFIG_KEY', 'JWT_SECRET', 'DATA_DIR', 'DREAMCRAFT_DB'):
     env.pop(field, None)
 env['PATH'] = os.environ['SystemRoot'] + '\\System32'
+env['DREAMCRAFT_UPDATE_CHECK'] = '0'
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 processes = []
 

@@ -2,10 +2,16 @@ param(
     [string]$ProjectRoot = (Split-Path $PSScriptRoot -Parent),
     [string]$Python = 'python',
     [string]$Compiler,
-    [switch]$RequireInstaller
+    [switch]$RequireInstaller,
+    [switch]$RequireSignature
 )
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+$signing = [bool]($env:DREAMCRAFT_SIGN_THUMBPRINT -or $env:DREAMCRAFT_SIGN_PFX)
+if ($RequireSignature -and !$signing) { throw 'Trusted signing credentials are required' }
+if ($signing) {
+    & (Join-Path $PSScriptRoot 'sign.ps1') -CheckOnly
+} else { Write-Warning 'Building unsigned packages: no trusted signing certificate configured' }
 & $Python (Join-Path $ProjectRoot 'scripts\version.py')
 if ($LASTEXITCODE -ne 0) { throw 'Version validation failed' }
 $version = (Get-Content -LiteralPath (Join-Path $ProjectRoot 'VERSION') -Raw).Trim()
@@ -36,6 +42,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Version resource generation failed' }
     --add-data "$(Join-Path $ProjectRoot 'VERSION');." (Join-Path $PSScriptRoot 'desktop.py')
 if ($LASTEXITCODE -ne 0) { throw 'Executable build failed' }
 $appFolder = Join-Path $buildRoot 'dist\DreamCraft'
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'apply-update.ps1') -Destination (Join-Path $appFolder '_internal')
+if ($signing) { & (Join-Path $PSScriptRoot 'sign.ps1') -FilePath (Join-Path $appFolder 'DreamCraft.exe') }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '使用说明.txt') -Destination $appFolder
 $forbidden = Get-ChildItem -LiteralPath $appFolder -Recurse -Force -File | Where-Object {
     $_.Name -match '\.(db|db-wal|db-shm)$|^\.env$|^\.jwt-secret$|^\.engine-key$' -or
@@ -48,9 +56,19 @@ Write-Output "APP=$appFolder"
 Write-Output "ZIP=$archive"
 $artifacts = @($archive)
 if (Test-Path -LiteralPath $Compiler) {
-    & $Compiler /Q "/DAppSource=$appFolder" "/DAppVersion=$version" "/O$releaseRoot" (Join-Path $PSScriptRoot 'installer.iss')
+    $signArguments = @()
+    if ($signing) {
+        $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $signer = Join-Path $PSScriptRoot 'sign.ps1'
+        $signArguments = @('/DSignRelease=1', ('/Sdreamcraft=$q' + $powershell + '$q -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $q' + $signer + '$q -FilePath $f'))
+    }
+    & $Compiler /Q "/DAppSource=$appFolder" "/DAppVersion=$version" "/O$releaseRoot" @signArguments (Join-Path $PSScriptRoot 'installer.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
     $artifacts += Join-Path $releaseRoot "DreamCraft-Setup-$version-x64.exe"
+    if ($signing) {
+        $signature = Get-AuthenticodeSignature -LiteralPath $artifacts[-1]
+        if ($signature.Status -ne 'Valid' -or !$signature.TimeStamperCertificate) { throw 'Installer signature verification failed' }
+    }
 } else { Write-Warning 'Inno Setup not found; portable ZIP only' }
 $sums = foreach ($artifact in $artifacts) {
     $hash = Get-FileHash -LiteralPath $artifact -Algorithm SHA256

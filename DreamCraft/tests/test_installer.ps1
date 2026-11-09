@@ -1,7 +1,8 @@
-param([string]$Python = 'python')
+param([string]$Python = 'python', [string]$ReleaseRoot, [string]$Version)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim()
+if (!$Version) { $Version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim() }
+if (!$ReleaseRoot) { $ReleaseRoot = Join-Path $root 'releases' }
 $testRoot = Join-Path $root ('tests\output\installer-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $installDir = Join-Path $testRoot 'installed'
 $desktopLink = Join-Path ([Environment]::GetFolderPath('Desktop')) 'DreamCraft.lnk'
@@ -19,7 +20,7 @@ try {
     $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/LANG=chinesesimplified',
         ('/DIR="' + $installDir + '"'), '/TASKS=desktopicon',
         ('/LOG="' + (Join-Path $testRoot 'install.log') + '"'))
-    $setup = Start-Process -FilePath (Join-Path $root "releases\DreamCraft-Setup-$version-x64.exe") -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
+    $setup = Start-Process -FilePath (Join-Path $ReleaseRoot "DreamCraft-Setup-$version-x64.exe") -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
     if ($setup.ExitCode -ne 0) { throw "Installation failed: $($setup.ExitCode)" }
     $exe = Join-Path $installDir 'DreamCraft.exe'
     if ((Get-Item -LiteralPath $exe).VersionInfo.ProductVersion -ne $version) { throw 'Incorrect EXE version' }
@@ -30,7 +31,7 @@ try {
     }
     if ((Get-ItemProperty $registryKey).DisplayVersion -ne $version) { throw 'Incorrect installed version' }
     Write-Output 'PASS installer: version, desktop shortcut and start menu shortcut'
-    & $Python (Join-Path $root 'desktop\test_desktop.py') $exe
+    & $Python (Join-Path $root 'desktop\test_desktop.py') $exe --version $version
     if ($LASTEXITCODE -ne 0) { throw 'Installed executable regression failed' }
 } finally {
     $uninstaller = Join-Path $installDir 'unins000.exe'
