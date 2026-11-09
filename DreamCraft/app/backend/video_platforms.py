@@ -86,8 +86,10 @@ def _post(url, body, key, timeout=120, headers=None):
             detail = e.read().decode()[:300]
         except Exception:
             pass
-        if e.code == 503 or "queue_full" in detail:
+        if "queue_full" in detail:
             raise VideoPlatformError("平台队列已满，请稍后重试")
+        if e.code == 503:
+            raise VideoPlatformError("平台服务暂时不可用（HTTP 503），请稍后重试")
         if e.code in (401, 403) or "quota" in detail or "invalid_api_key" in detail:
             raise VideoPlatformError(f"API key 无效或额度不足：{detail[:150]}")
         raise VideoPlatformError(f"提交失败 HTTP {e.code}: {detail[:200]}")

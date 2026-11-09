@@ -235,6 +235,23 @@ class BackendTests(unittest.TestCase):
             v.submit('agnes', 'fake', 'test', ref_image='/uploads/reference.png')
             self.assertTrue(post.call_args.args[1]['image'].startswith('data:' + 'image/png;base64,'))
 
+    def test_video_service_unavailable_is_not_always_queue_full(self):
+        import urllib.error
+        import video_platforms as v
+        for status, detail, expected in (
+                (503, b'{"error":{"code":"video_queue_full"}}', '平台队列已满'),
+                (429, b'{"error":{"code":"queue_full"}}', '平台队列已满'),
+                (503, b'<html>Service Unavailable</html>', '平台服务暂时不可用（HTTP 503）'),
+                (503, b'', '平台服务暂时不可用（HTTP 503）')):
+            with self.subTest(status=status, detail=detail):
+                error = urllib.error.HTTPError('https://example.com/v1/videos',
+                    status, 'Unavailable', {}, io.BytesIO(detail))
+                with patch.object(v, 'open_remote', side_effect=error) as remote:
+                    with self.assertRaises(v.VideoPlatformError) as caught:
+                        v.submit('agnes', 'fake', 'test')
+                self.assertIn(expected, str(caught.exception))
+                remote.assert_called_once()
+
     def test_comfy_proxy_is_scoped(self):
         with patch.object(main, '_BYOK_ONLY', False):
             self.assertEqual(self.client.get('/api/comfy/system_stats', headers={'X-Comfy-Base': 'https://example.com'}).status_code, 400)

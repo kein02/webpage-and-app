@@ -4,7 +4,7 @@ Windows 10/11 x64 桌面包，原生启动窗口配合浏览器工作区。数�
 
 ## 使用
 
-从 [1.1.0 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.1.0) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
+从 [1.1.1 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.1.1) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
 
 启动器自动打开浏览器，重复双击复用当前实例；关闭启动器停止服务。默认端口 17861，冲突时自动选择空闲端口。
 

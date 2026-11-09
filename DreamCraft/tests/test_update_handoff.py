@@ -1,4 +1,4 @@
-"""Real portable/installed update handoff with isolated accounts and verified local packages."""
+"""Real update handoff with isolated accounts; --online downloads GitHub packages."""
 import argparse
 import hashlib
 import json
@@ -22,6 +22,8 @@ def main():
     parser.add_argument('old_release', type=Path)
     parser.add_argument('--old-version', default='1.0.3')
     parser.add_argument('--installed', action='store_true')
+    parser.add_argument('--online', action='store_true',
+                        help='Discover and download the target release from GitHub without mocked transport')
     args = parser.parse_args()
     version = (ROOT / 'VERSION').read_text().strip()
     output = ROOT / 'tests/output' / ('update-' + uuid.uuid4().hex[:8])
@@ -114,14 +116,20 @@ def main():
         secret = (data / '.engine-key').read_bytes()
         name = f'DreamCraft-{"Setup" if args.installed else "Windows"}-{version}-x64'
         name += '.exe' if args.installed else '.zip'
-        payload = ROOT / 'releases' / name
-        release = {'tag_name': 'dreamcraft-v' + version, 'assets': [{
-            'name': name, 'size': payload.stat().st_size,
-            'digest': 'sha256:' + hashlib.sha256(payload.read_bytes()).hexdigest(),
-            'browser_download_url': f'https://github.com/{updater.REPOSITORY}/releases/download/dreamcraft-v{version}/{name}'}]}
-        with patch.object(updater, 'open_github', side_effect=lambda _: payload.open('rb')):
+        if args.online:
+            release = updater.check(args.old_version, 'installed' if args.installed else 'portable')
+            assert release and release['tag_name'] == 'dreamcraft-v' + version, 'Unexpected online target release'
             plan = updater.prepare(release, args.old_version, app, data,
                                    ROOT / 'desktop/apply-update.ps1', lambda *_: None, no_browser=True)
+        else:
+            payload = ROOT / 'releases' / name
+            release = {'tag_name': 'dreamcraft-v' + version, 'assets': [{
+                'name': name, 'size': payload.stat().st_size,
+                'digest': 'sha256:' + hashlib.sha256(payload.read_bytes()).hexdigest(),
+                'browser_download_url': f'https://github.com/{updater.REPOSITORY}/releases/download/dreamcraft-v{version}/{name}'}]}
+            with patch.object(updater, 'open_github', side_effect=lambda _: payload.open('rb')):
+                plan = updater.prepare(release, args.old_version, app, data,
+                                       ROOT / 'desktop/apply-update.ps1', lambda *_: None, no_browser=True)
         metadata = json.loads(plan.read_text())
         metadata['pid'] = proc.pid
         plan.write_text(json.dumps(metadata), encoding='utf-8')
@@ -167,7 +175,8 @@ def main():
         if not args.installed:
             assert (Path(metadata['backup']) / 'DreamCraft.exe').exists()
         print('PASS real ' + metadata['kind'] + ' update ' + args.old_version + ' -> ' + version +
-              ': handoff, restart, login, encrypted key, assets and backup')
+              ': ' + ('GitHub download, ' if args.online else '') +
+              'handoff, restart, login, encrypted key, assets and backup')
         print('EVIDENCE=' + str(output))
     finally:
         try:

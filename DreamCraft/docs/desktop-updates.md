@@ -22,6 +22,10 @@ GitHub 附件的 SHA256 和大小，检查通过后关闭本机服务，升级�
 确认没有更新进程在运行后，可以删除这些暂存目录。更新不自动清理旧版备份。
 设置环境变量 `DREAMCRAFT_UPDATE_CHECK=0` 可关闭启动时检查，手动按钮仍可使用。
 
+GitHub 匿名 API 按出口地址限流，共用代理的额度耗尽时可能返回 HTTP 403。
+请等限额恢复或换用自己可用的网络；也可从正式发布页手动下载。
+附件下载成功并不代表 API 额度已恢复，项目不会内置维护者 GitHub 凭据。
+
 ## 更新来源与边界
 
 更新器通过 HTTPS 读取 `kein02/webpage-and-app` 的 Releases，
@@ -76,7 +80,7 @@ Base64 在 runner 临时目录解码，构建结束删除。证书和密码不�
 
 ```powershell
 Get-AuthenticodeSignature .\DreamCraft.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
-Get-AuthenticodeSignature .\DreamCraft-Setup-1.1.0-x64.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
+Get-AuthenticodeSignature .\DreamCraft-Setup-1.1.1-x64.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
 ```
 
 `Status` 应为 `Valid` 且有时间戳证书。安装后的 `unins000.exe` 也应检查。
