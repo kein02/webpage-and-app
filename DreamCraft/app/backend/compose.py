@@ -15,8 +15,22 @@ os.makedirs(EXPORT_DIR, exist_ok=True)
 
 def find_ffmpeg() -> str:
     if not os.path.isfile(FFMPEG):
-        raise RuntimeError("ffmpeg 未安装，请设置 DREAMCRAFT_FFMPEG")
+        raise RuntimeError("未找到 FFmpeg。请在运行后端的电脑安装并加入 PATH，"
+                           "或设置 DREAMCRAFT_FFMPEG 为可执行文件路径，然后重启应用。"
+                           "Windows 桌面版也可将 ffmpeg.exe 放在 DreamCraft.exe 旁。")
     return FFMPEG
+
+
+def ffmpeg_status() -> dict:
+    try:
+        result = subprocess.run([find_ffmpeg(), '-version'], capture_output=True,
+                                timeout=5, creationflags=0x08000000 if os.name == 'nt' else 0)
+        if result.returncode:
+            raise RuntimeError('FFmpeg 无法运行，请检查安装后重启应用。')
+        return {'ready': True, 'message': 'FFmpeg 已就绪，可以合成短剧。'}
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        return {'ready': False, 'message': 'FFmpeg 未就绪。请在运行后端的电脑安装 FFmpeg 并加入 PATH，'
+                '或设置 DREAMCRAFT_FFMPEG，然后重启应用。桌面版可将 ffmpeg.exe 放在 DreamCraft.exe 旁。'}
 
 
 def compose(urls: list, output_name: str = None, subtitles: list = None,

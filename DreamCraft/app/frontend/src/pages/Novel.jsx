@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 import { api, assetUrl, getToken } from '../api'
 import PageShell from '../components/PageShell'
 
@@ -22,6 +24,18 @@ export default function Novel() {
   const [finalVideo, setFinalVideo] = useState(saved.finalVideo || null)
   const [finalMeta, setFinalMeta] = useState(saved.finalMeta || null)
   const [error, setError] = useState('')
+  const [dependencies, setDependencies] = useState(null)
+  const [dependencyError, setDependencyError] = useState('')
+  const [checking, setChecking] = useState(false)
+
+  const checkDependencies = async () => {
+    setChecking(true); setDependencyError('')
+    try { setDependencies(await api.engineDiagnostics()) }
+    catch (e) { setDependencies(null); setDependencyError(e.message) }
+    finally { setChecking(false) }
+  }
+
+  useEffect(() => { checkDependencies() }, [])
 
   useEffect(() => {
     try { sessionStorage.setItem(storageKey, JSON.stringify({ theme, shots, taskIds, finalVideo, finalMeta })) } catch {}
@@ -90,6 +104,14 @@ export default function Novel() {
   return (
     <PageShell title="短剧工坊" subtitle="一个念头，一份剧本，一段属于你的故事。">
     <div className="space-y-5 max-w-4xl">
+      <aside className="engine-dependencies space-y-2" aria-label="短剧环境">
+        <div className="flex items-center justify-between gap-3"><span className="text-sm">短剧环境</span><button className="icon-button" aria-label="重新检测短剧环境" title="重新检测短剧环境" onClick={checkDependencies} disabled={checking}><RefreshCw size={15} className={checking ? 'animate-spin' : ''} /></button></div>
+        {dependencies ? <>
+          <p className="text-xs text-ink-dim">{dependencies.video.configured ? '视频平台已配置；生成镜头将使用该平台的额度。' : '尚未配置视频平台，生成镜头前请先连接自己的 API。'}</p>
+          <p className={`text-xs ${dependencies.ffmpeg.ready ? 'text-ink-dim' : 'dependency-warning'}`}>{dependencies.ffmpeg.message}</p>
+          {(!dependencies.video.configured || !dependencies.ffmpeg.ready) && <Link className="text-link" to="/ai-tool/engine">前往引擎设置</Link>}
+        </> : <p className="text-xs text-ink-dim" role="status">{dependencyError || '正在检测…'}</p>}
+      </aside>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
 
       <div className="flex flex-wrap gap-2">
@@ -122,13 +144,13 @@ export default function Novel() {
           </h2>
           {taskIds.map((id, i) => <div key={id} className="text-xs text-ink-dim">镜头 {i + 1}：{status[id]?.status === 'failed' ? status[id].error : status[id]?.status === 'succeed' ? '已完成' : '生成中'}</div>)}
           {allDone && done.length > 0 && (
-            <button onClick={compose} disabled={composing || busy}
+            <button onClick={compose} disabled={composing || busy || dependencies?.ffmpeg.ready === false}
               className="w-full rounded-lg bg-green-600 py-2 text-sm font-medium disabled:opacity-50">
               {composing ? 'ffmpeg 合成中…' : '合成完整成片'}
             </button>
           )}
           {done.length > 0 && !allDone && (
-            <div className="text-xs text-ink-faint">部分镜头完成后即可合成（等待中：{taskIds.length - done.length - taskIds.filter((t) => status[t]?.status === 'failed').length} 条）</div>
+            <div className="text-xs text-ink-faint">等待所有镜头结束后，可合成已完成的镜头（等待中：{taskIds.length - done.length - taskIds.filter((t) => status[t]?.status === 'failed').length} 条）</div>
           )}
           {done.length > 0 && !finalVideo && allDone && <div className="text-xs text-ink-faint">点击上方按钮合成</div>}
         </section>

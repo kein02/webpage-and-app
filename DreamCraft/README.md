@@ -2,7 +2,7 @@
 
 面向个人创作者的图像、视频与素材工作区，支持 Windows 安装版和网页自部署，接入自己的 ComfyUI 或云端 API。
 
-[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.2) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
+[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.3) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
 
 ![DreamCraft 3D 创作工作区](docs/screenshots/home-desktop-3d-final.png)
 
@@ -10,13 +10,15 @@
 
 | 方式 | 下载或运行 | 要求 |
 |---|---|---|
-| Windows 安装版 | [DreamCraft-Setup-1.0.2-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.2/DreamCraft-Setup-1.0.2-x64.exe) | Windows 10/11 x64，无需 Python/Node |
-| Windows 便携版 | [DreamCraft-Windows-1.0.2-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.2/DreamCraft-Windows-1.0.2-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
+| Windows 安装版 | [DreamCraft-Setup-1.0.3-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.3/DreamCraft-Setup-1.0.3-x64.exe) | Windows 10/11 x64，无需 Python/Node |
+| Windows 便携版 | [DreamCraft-Windows-1.0.3-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.0.3/DreamCraft-Windows-1.0.3-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
 | 网页自部署 | `docker compose up -d --build` | 在本目录执行，需要 Docker/Compose |
 
 Windows 首次启动后注册登录，进入「引擎设置」，连接自己的 ComfyUI 或填 API Key，再生成一张低分辨率图片验证。程序不包含模型、公共算力或作者的密钥。安装包带中文向导、桌面快捷方式、图标和版本号；卸载保留个人数据。当前无自动更新和数字签名。
 
-Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 下载新版安装包或替换便携文件，Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.0.2-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
+首次使用提供可跳过的引导，检查 ComfyUI 模型和工作流节点，并显示视频平台、FFmpeg 状态。引导可在引擎设置中重新打开。真实生成与尚未验证的范围见 [生成验收](docs/generation-acceptance.md)。
+
+Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 下载新版安装包或替换便携文件，Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.0.3-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
 
 > [!IMPORTANT]
 > 本目录是 React/FastAPI 版 DreamCraft。仓库中的 DreamForge 是独立的 Node.js 项目，两者的安装包、数据和配置不能混用。GitHub Pages 无法运行本项目的完整后端。
@@ -95,7 +97,7 @@ python tests/test_modes.py public
 python tests/test_release_browser.py
 ```
 
-浏览器测试需要 Playwright。GPU 实测由 `test_local.py`、`test_direct.py` 等脚本单独执行，会调用本机 ComfyUI。测试输出在 `tests/output`，历史脚本位于 `tests/legacy`，其中部分会提交实际生成请求，不能视为无费用回归。
+浏览器测试需要 Playwright。GPU 实测由 `test_local.py`、`test_direct.py` 等脚本单独执行，会调用本机 ComfyUI。`test_generation_live.py --cloud` 会提交付费图片和视频请求，`--video-only` 只补测视频；不带参数时跳过。测试输出在 `tests/output`，历史脚本位于 `tests/legacy`，其中部分会提交实际生成请求，不能视为无费用回归。
 
 ## 文档
 
@@ -106,6 +108,7 @@ python tests/test_release_browser.py
 | [网页部署](docs/deployment.md) | Docker、源码、HTTPS、备份和模式隔离 |
 | [Windows 使用与构建](docs/windows.md) | 安装、便携版、打包与卸载 |
 | [验收记录](docs/windows-acceptance.md) | 安装回归和已验证范围 |
+| [生成与引导验收](docs/generation-acceptance.md) | 本机和云端真实生成、首次使用及未验证项 |
 
 ## 参与贡献
 

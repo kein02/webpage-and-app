@@ -1,6 +1,6 @@
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUpRight, Bot, Clapperboard, Film, Image, Layers, Pause, Play, Settings2, WandSparkles } from 'lucide-react'
-import { api } from '../api'
+import { ArrowDown, ArrowUpRight, Bot, Clapperboard, Film, Image, Layers, Pause, Play, Settings2, WandSparkles, X } from 'lucide-react'
+import { api, engineStorageKey } from '../api'
 import { detectQuality } from '../three/quality'
 import StaticScene from '../three/StaticScene'
 import Loader from '../three/Loader'
@@ -30,6 +30,8 @@ export default function Home({ onOpen }) {
   const [cats, setCats] = useState([])
   const [wallet, setWallet] = useState(null)
   const [hovered, setHovered] = useState(null)
+  const guideKey = engineStorageKey() + ':setup-dismissed'
+  const [showSetup, setShowSetup] = useState(() => localStorage.getItem(guideKey) !== '1')
   const sectionRef = useRef(null)
   const progress = useRef(0)
 
@@ -52,6 +54,11 @@ export default function Home({ onOpen }) {
 
   return (
     <div className="studio-home">
+      {showSetup && <aside className="setup-notice" aria-label="首次使用准备">
+        <Settings2 size={18} /><div><strong>首次使用，先连接引擎</strong><span>选择自己的 ComfyUI 或 API，检测出图与短剧环境。</span></div>
+        <button className="text-link" onClick={() => onOpen('/ai-tool/engine')}>配置引擎<ArrowUpRight size={15} /></button>
+        <button className="icon-button" title="暂时跳过" aria-label="暂时跳过" onClick={() => { localStorage.setItem(guideKey, '1'); setShowSetup(false) }}><X size={16} /></button>
+      </aside>}
       <section className="studio-hero" aria-label="造梦工坊创意工作室">
         <div className="scene-stage">
           <SceneBoundary key={quality} fallback={fallback} onError={() => { setQuality('static'); setReady(true) }}>

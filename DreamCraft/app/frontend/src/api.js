@@ -150,6 +150,7 @@ export const api = {
   engineConfig: () => get('/api/biz/v1/engine/config'),
   engineSet: (body) => post('/api/biz/v1/engine/config', body),
   engineAvailable: () => get('/api/biz/v1/engine/available'),
+  engineDiagnostics: () => get('/api/biz/v1/engine/diagnostics'),
   videoPlatforms: () => get('/api/biz/v1/video/platforms'),
 
   // 团队

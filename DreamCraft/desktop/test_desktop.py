@@ -69,6 +69,10 @@ try:
     base = state['url']
     assert request(base + '/openapi.json')['info']['version'] == version
     assert request(base + '/api/runtime') == {'mode': 'local', 'default_engines': True, 'local_comfy_proxy': True}
+    diagnostics = request(base + '/api/biz/v1/engine/diagnostics')
+    assert diagnostics['video']['configured'] is False
+    assert isinstance(diagnostics['ffmpeg']['ready'], bool)
+    assert 'FFmpeg' in diagnostics['ffmpeg']['message']
     assert Path(request(base + '/api/desktop/status')['data_dir']) == data
     assert not request(base + '/api/biz/v1/asset/list')['assets']
     duplicate = subprocess.Popen([str(exe), '--data-dir', str(data), '--no-browser', '--no-window'],

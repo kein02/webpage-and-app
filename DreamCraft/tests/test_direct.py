@@ -1,11 +1,12 @@
 import io
 import pathlib
+import os
 from PIL import Image, ImageChops
 from playwright.sync_api import sync_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parent / 'output'
 ROOT.mkdir(parents=True, exist_ok=True)
-BASE = 'http://127.0.0.1:8102'
+BASE = os.environ.get('DREAMCRAFT_TEST_BASE', 'http://127.0.0.1:8102')
 buf = io.BytesIO()
 Image.new('RGB', (256, 256), '#ca6950').save(buf, format='PNG')
 with sync_playwright() as pw:
@@ -31,6 +32,9 @@ with sync_playwright() as pw:
     image.evaluate('(img) => img.decode()')
     assert image.evaluate('(img) => img.naturalWidth') == 256
     assert page.get_by_text('comfyui:http://127.0.0.1:8188', exact=True).count()
+    with page.expect_download() as download:
+        page.get_by_role('link', name='下载图片', exact=True).click()
+    assert Image.open(download.value.path()).size == (256, 256)
     page.goto(BASE + '/ai-tool/asset')
     page.wait_for_load_state('networkidle')
     image = page.locator('.asset-grid img').first

@@ -158,6 +158,17 @@ class BackendTests(unittest.TestCase):
         workflow = provider._workflow_sdxl('test', 512, 512, 1, 4, 1)
         self.assertEqual(workflow['3']['inputs']['ckpt_name'], 'custom_sdxl_v2.safetensors')
 
+    def test_comfy_does_not_advertise_missing_workflow_nodes(self):
+        provider = providers.ComfyUIProvider()
+        provider._has_zimage = lambda: True
+        provider._has_sdxl = lambda: True
+        provider._has_lightning = lambda: True
+        provider._node_names = lambda: {'KSampler', 'VAEDecode', 'SaveImage', 'CheckpointLoaderSimple',
+                                        'CLIPTextEncode', 'EmptyLatentImage'}
+        self.assertEqual([item['id'] for item in provider.available_engines()], ['sdxl'])
+        provider._node_names = lambda: set()
+        self.assertEqual(provider.available_engines(), [])
+
     def test_drama_validates_entire_batch_before_submission(self):
         with patch.object(main, '_video_platform_for', return_value=('agnes', 'fake', None, None, 'user')), patch.object(main.video_platforms, 'generate_blocking') as generate:
             for shots in ([{'prompt': 'valid'}, {'prompt': '   '}], [{'prompt': 'valid'}, {'prompt': 12}], [{'prompt': 'valid'}, {'prompt': 'x' * 10001}]):
@@ -172,6 +183,27 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.post('/lv/v1/commerce/subscribe', json={'plan': 'bad'}, headers=self.headers[0]).status_code, 400)
         self.assertEqual(self.client.post('/api/biz/v1/agent/submit_run', json={'messages': ['bad']}, headers=self.headers[0]).status_code, 400)
         self.assertEqual(self.client.post('/lv/v1/editor/image/ai_model/submit_task', json={'prompt': 'test', 'n': 99}).status_code, 422)
+
+    def test_engine_diagnostics_and_missing_ffmpeg(self):
+        import compose
+        with patch.object(main, '_video_platform_for', return_value=('agnes', 'secret-key', 'private-root', 'model', 'user')), \
+                patch.object(compose, 'FFMPEG', '/missing/ffmpeg'):
+            result = self.client.get('/api/biz/v1/engine/diagnostics', headers=self.headers[0])
+            self.assertEqual(result.status_code, 200, result.text)
+            self.assertEqual(result.json()['video'], {'configured': True, 'platform': 'agnes', 'source': 'user'})
+            self.assertFalse(result.json()['ffmpeg']['ready'])
+            self.assertNotIn('secret-key', result.text)
+            self.assertNotIn('private-root', result.text)
+            self.assertNotIn('/missing/', result.text)
+            with patch.object(compose, 'compose') as render:
+                response = self.client.post('/lv/v1/short_drama/compose',
+                    headers=self.headers[0], json={'urls': ['https://example.com/clip.mp4']})
+                self.assertEqual(response.status_code, 503, response.text)
+                self.assertIn('DREAMCRAFT_FFMPEG', response.json()['detail'])
+                render.assert_not_called()
+        with patch.object(compose, 'find_ffmpeg', return_value='ffmpeg'), \
+                patch.object(compose.subprocess, 'run', side_effect=OSError('invalid executable')):
+            self.assertFalse(compose.ffmpeg_status()['ready'])
 
     def test_inpaint_preserves_pixels(self):
         data = 'data:' + 'image/png;base64,' + base64.b64encode(image_data()).decode()

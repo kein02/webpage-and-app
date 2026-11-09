@@ -478,6 +478,17 @@ async def engine_available(request: Request):
     ]}
 
 
+@app.get("/api/biz/v1/engine/diagnostics")
+async def engine_diagnostics(request: Request):
+    import compose
+    uid = _uid(request)
+    platform, key, _, _, source = _video_platform_for(uid)
+    return {
+        "video": {"configured": bool(platform and key), "platform": platform, "source": source},
+        "ffmpeg": await asyncio.to_thread(compose.ffmpeg_status),
+    }
+
+
 # ---------------------------------------------------------------------------
 # 任务存储
 # ---------------------------------------------------------------------------
@@ -1172,6 +1183,9 @@ async def drama_compose(body: dict, request: Request):
         body["subtitles"] = selected_subtitles
     if not urls:
         raise HTTPException(400, "没有可用的镜头视频：传 urls 或已完成短剧任务的 task_ids")
+    check = await asyncio.to_thread(compose.ffmpeg_status)
+    if not check["ready"]:
+        raise HTTPException(503, check["message"])
     loop = asyncio.get_event_loop()
     try:
         out = await loop.run_in_executor(

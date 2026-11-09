@@ -263,16 +263,27 @@ class ComfyUIProvider:
         """Lightning 4-step LoRA 是否可用（快速草稿的关键）。"""
         return bool(self._lightning_lora())
 
+    def _node_names(self):
+        def fetch():
+            with open_remote(f"{self.base}/object_info", timeout=15) as response:
+                return set(json.loads(response.read()))
+        return self._cached("node-names", fetch)
+
     def available_engines(self) -> list:
         """返回当前可用的出图档位，前端下拉用。"""
+        nodes = self._node_names()
+        common = {"KSampler", "VAEDecode", "SaveImage"}
+        sdxl_ready = (common | {"CheckpointLoaderSimple", "CLIPTextEncode", "EmptyLatentImage"}) <= nodes
+        zimage_ready = (common | {"UNETLoader", "CLIPLoader", "VAELoader", "ModelSamplingAuraFlow",
+                                  "TextEncodeZImageOmni", "EmptySD3LatentImage"}) <= nodes
         out = []
-        if self._has_zimage():
+        if zimage_ready and self._has_zimage():
             out.append({"id": "z-image-turbo", "name": "Z-Image Turbo（精修）",
                         "desc": "画质好，12 步，约 30s，提示词写具体更贴合", "rough_seconds": 30})
-        if self._has_sdxl() and self._has_lightning():
+        if sdxl_ready and "LoraLoaderModelOnly" in nodes and self._has_sdxl() and self._has_lightning():
             out.append({"id": "sdxl-draft", "name": "SDXL 草稿（极速）",
                         "desc": "Lightning 4 步，约 6s，适合试构图", "rough_seconds": 6})
-        if self._has_sdxl():
+        if sdxl_ready and self._has_sdxl():
             out.append({"id": "sdxl", "name": "SDXL 标准",
                         "desc": "28 步，生态最全（LoRA/ControlNet）", "rough_seconds": 30})
         return out

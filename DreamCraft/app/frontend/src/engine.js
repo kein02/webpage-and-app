@@ -70,24 +70,35 @@ export async function comfyEngines(base) {
     && vaes.includes('ae.safetensors')
   const hasSDXL = ckpts.some(c => /sdxl|sd_xl/i.test(c))
   const hasLightning = loras.some(l => /lightning/i.test(l))
+  const common = ['KSampler', 'VAEDecode', 'SaveImage']
+  const sdxlNodes = [...common, 'CheckpointLoaderSimple', 'CLIPTextEncode', 'EmptyLatentImage']
+  const zNodes = [...common, 'UNETLoader', 'CLIPLoader', 'VAELoader', 'ModelSamplingAuraFlow', 'TextEncodeZImageOmni', 'EmptySD3LatentImage']
+  const missing = nodes => nodes.filter(node => !oi[node])
   const out = []
-  if (hasSDXL && hasLightning) out.push({
+  if (hasSDXL && hasLightning && !missing([...sdxlNodes, 'LoraLoaderModelOnly']).length) out.push({
     id: 'sdxl-draft', name: 'SDXL 草稿（极速）',
     desc: 'Lightning 4 步，约 6s，适合试构图', rough_seconds: 6,
     ckpt: ckpts.find(c => /sdxl|sd_xl/i.test(c)), lora: loras.find(l => /lightning/i.test(l)),
   })
-  if (hasZ) out.push({
+  if (hasZ && !missing(zNodes).length) out.push({
     id: 'z-image-turbo', name: 'Z-Image Turbo（精修）',
-    desc: '画质最好，8 步，约 25s', rough_seconds: 25,
+    desc: '12 步，适合精修', rough_seconds: 30,
     unet: 'z_image_turbo_int8_convrot.safetensors', clip: 'qwen_3_4b_fp8_mixed.safetensors',
     vae: 'ae.safetensors',
   })
-  if (hasSDXL) out.push({
+  if (hasSDXL && !missing(sdxlNodes).length) out.push({
     id: 'sdxl', name: 'SDXL 标准',
     desc: '28 步，生态最全（LoRA/ControlNet）', rough_seconds: 30,
     ckpt: ckpts.find(c => /sdxl|sd_xl/i.test(c)),
   })
-  return { base, engines: out }
+  const issues = []
+  if (!out.length) {
+    if (!hasSDXL) issues.push('未发现 SDXL 模型：将文件名含 sdxl 或 sd_xl 的 checkpoint 放入 ComfyUI/models/checkpoints，再重启 ComfyUI。')
+    if (hasSDXL && missing(sdxlNodes).length) issues.push('SDXL 缺少节点：' + missing(sdxlNodes).join('、') + '。请更新或修复 ComfyUI。')
+    if (hasZ && missing(zNodes).length) issues.push('Z-Image 缺少节点：' + missing(zNodes).join('、') + '。请更新 ComfyUI 或安装对应节点。')
+    if (!hasZ) issues.push('Z-Image 需要 UNet、Qwen CLIP 和 VAE 三个配套权重；也可先使用 SDXL。')
+  }
+  return { base, engines: out, issues }
 }
 
 /** 在指定 ComfyUI 实例上出一张图（构建工作流 + 提交 + 轮询 + 取图 base64 返回）。 */
@@ -215,6 +226,21 @@ export async function agnesReachable(key, root) {
     signal: AbortSignal.timeout(10000),
   })
   return r.status === 200
+}
+
+export async function agnesImageStatus(key, root) {
+  const r = await fetch((root || 'https://api.agnes-ai.cn').replace(/\/$/, '') + '/v1/models', {
+    headers: { Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(10000),
+  })
+  if (!r.ok) throw new Error('Agnes 验证失败（HTTP ' + r.status + '），请检查 Key、地址和网络。')
+  const data = await r.json()
+  const models = Array.isArray(data.data) ? data.data : []
+  const available = models.some(model => (model.id || model) === 'agnes-image-2.5-flash')
+  return {
+    ok: available,
+    text: available ? 'Agnes key 有效，已发现 agnes-image-2.5-flash；生成仍需账户额度。'
+      : 'API 可连接，但模型列表没有 agnes-image-2.5-flash。请确认地址和模型权限；尚未验证出图能力。',
+  }
 }
 
 export async function agnesGenerate(key, root, { prompt, refImage, aspectRatio = '1:1', resolution = 1024, seed, n = 1 }) {

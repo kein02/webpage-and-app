@@ -4,11 +4,13 @@ Windows 10/11 x64 桌面包，原生启动窗口配合浏览器工作区。数�
 
 ## 使用
 
-从 [1.0.2 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.2) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
+从 [1.0.3 发布页](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.0.3) 下载安装器；安装向导支持选择目录、桌面快捷方式和开始菜单入口。便携版解压 ZIP 后运行 DreamCraft.exe，必须保留 `_internal` 目录。
 
 启动器自动打开浏览器，重复双击复用当前实例；关闭启动器停止服务。默认端口 17861，冲突时自动选择空闲端口。
 
 使用当前电脑的 API 环境变量或引擎设置。默认 ComfyUI 地址为 `http://127.0.0.1:8188`，需要先启动 ComfyUI；不包含模型。短剧合成需要 FFmpeg 在 PATH 或 EXE 同目录。
+
+首次使用可按首页入口打开引擎引导；跳过后仍可在引擎设置中重新打开。引擎设置和短剧工坊会检测 FFmpeg，缺少或无法运行时显示安装位置及重启提示，短剧合成按钮暂停使用。网页自部署时 FFmpeg 必须安装在后端所在电脑，访客电脑的安装不能代替后端依赖。
 
 ## 构建
 
