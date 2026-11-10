@@ -36,3 +36,22 @@ def run(index):
 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
     print(list(pool.map(run, range(2))))
 print('PASS concurrent compose, mixed sizes, silent clips, Chinese subtitles, BGM, decoded outputs')
+
+trimmed = compose.compose(['/exports/silent.mp4', '/exports/audio.mp4'],
+    subtitles=[{'text': '长字幕自动折行，完整保留在画面内。' * 12}, {'text': 'Second'}], bgm='/exports/music.wav',
+    clips=[{'start': 0.1, 'duration': 0.25}, {'start': 0.2, 'duration': 0.3}], bgm_volume=0.35)
+ff('-i', trimmed['path'], '-f', 'null', '-')
+probe = subprocess.run([ffmpeg, '-i', trimmed['path']], capture_output=True,
+                       encoding='utf-8', errors='replace', timeout=10)
+import re
+duration = re.search(r'Duration: (\d+):(\d+):([\d.]+)', probe.stderr)
+seconds = int(duration[1]) * 3600 + int(duration[2]) * 60 + float(duration[3])
+assert 0.45 <= seconds <= 0.8, seconds
+compose.validate_audio(exports / 'music.wav')
+print('PASS actual per-shot start/duration trim, subtitles and adjustable BGM; decoded duration', seconds)
+try:
+    compose.compose(['/exports/silent.mp4'], clips=[{'start': 10, 'duration': 1}])
+    raise AssertionError('Trim past EOF must be rejected')
+except ValueError as error:
+    assert '剪辑起点' in str(error)
+print('PASS trim past actual video length rejected')

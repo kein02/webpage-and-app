@@ -497,6 +497,40 @@ class ComfyUIProvider:
     async def generate_video(self, *, prompt, ref_image=None, duration=5.0, model="default") -> dict:
         raise NotImplementedError("ComfyUI 本地视频需 AnimateDiff/Wan 插件；视频请走 Agnes")
 
+    def upscale_models(self):
+        with self._lock:
+            for key in ('opts:UpscaleModelLoader.model_name', 'oi:UpscaleModelLoader'):
+                self._cache.pop(key, None)
+        required = {'LoadImage', 'UpscaleModelLoader', 'ImageUpscaleWithModel', 'ImageScale', 'SaveImage'}
+        if not required <= self._node_names():
+            return {'ready': False, 'models': [], 'message': 'ComfyUI 缺少内置放大节点，请升级 ComfyUI。'}
+        models = self._opts('UpscaleModelLoader', 'model_name')
+        return {'ready': bool(models), 'models': models,
+                'message': 'AI 放大模型已就绪。' if models else
+                '未安装放大模型。将兼容的 ESRGAN / RealESRGAN 模型放入 ComfyUI/models/upscale_models，刷新模型列表后重试。'}
+
+    async def upscale(self, image_url, model, width, height):
+        info = await asyncio.to_thread(self.upscale_models)
+        if not info['ready']:
+            raise ValueError(info['message'])
+        model = model or info['models'][0]
+        if model not in info['models']:
+            raise ValueError('所选放大模型已不可用，请刷新模型列表')
+        filename = await asyncio.to_thread(self._upload_image, image_url)
+        workflow = {
+            '1': {'class_type': 'LoadImage', 'inputs': {'image': filename}},
+            '2': {'class_type': 'UpscaleModelLoader', 'inputs': {'model_name': model}},
+            '3': {'class_type': 'ImageUpscaleWithModel', 'inputs': {'upscale_model': ['2', 0], 'image': ['1', 0]}},
+            '4': {'class_type': 'ImageScale', 'inputs': {'image': ['3', 0], 'upscale_method': 'lanczos',
+                  'width': width, 'height': height, 'crop': 'disabled'}},
+            '5': {'class_type': 'SaveImage', 'inputs': {'filename_prefix': 'dreamcraft_ai_upscale', 'images': ['4', 0]}},
+        }
+        urls = await self._run(workflow)
+        if not urls:
+            raise RuntimeError('ComfyUI 未返回放大图片')
+        return {'result_url': await asyncio.to_thread(_mirror_to_exports, urls[0]),
+                'engine': 'comfyui-upscale', 'model': model}
+
     def _upload_image(self, image_url):
         data = read_image_bytes(image_url)
         boundary = "dc" + uuid.uuid4().hex

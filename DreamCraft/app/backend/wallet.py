@@ -5,7 +5,7 @@
   ledger(id, owner, delta, reason, task_id, created_at)
   subscription(owner, plan, expires_at)
 """
-import sqlite3, os, time, uuid, threading
+import sqlite3, os, time, uuid, threading, json
 
 DB_PATH = os.environ.get("DREAMCRAFT_DB",
                          os.path.join(os.path.dirname(__file__), "dreamcraft.db"))
@@ -38,6 +38,11 @@ def _conn() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS subscription (
             owner TEXT PRIMARY KEY, plan TEXT, expires_at INTEGER);
         """)
+        columns = {r[1] for r in c.execute("PRAGMA table_info(assets)")}
+        for name, definition in (("name", "TEXT DEFAULT ''"), ("tags", "TEXT DEFAULT '[]'"),
+                                 ("deleted_at", "INTEGER")):
+            if name not in columns:
+                c.execute(f"ALTER TABLE assets ADD COLUMN {name} {definition}")
         c.commit()
         _local.conn = c
     return _local.conn
@@ -47,22 +52,73 @@ def _conn() -> sqlite3.Connection:
 def add_asset(url, kind="image", prompt="", task_id="", owner="anon"):
     c = _conn()
     aid = uuid.uuid4().hex
-    c.execute("INSERT INTO assets VALUES (?,?,?,?,?,?,?)",
+    c.execute("INSERT INTO assets(id,url,kind,prompt,task_id,owner,created_at) VALUES (?,?,?,?,?,?,?)",
               (aid, url, kind, prompt, task_id, owner, int(time.time())))
     c.commit()
     return aid
 
 
-def list_assets(limit=60, owner=None, kind=None):
+def _asset_filter(owner, kind, query, tag, trash):
+    return ("(? IS NULL OR owner=?) AND (? IS NULL OR kind=?) "
+            "AND deleted_at IS " + ("NOT NULL" if trash else "NULL") +
+            " AND (?='' OR instr(lower(name || ' ' || prompt || ' ' || tags),lower(?))>0) "
+            "AND (?='' OR EXISTS (SELECT 1 FROM json_each(assets.tags) WHERE value=?))",
+            (owner, owner, kind, kind, query, query, tag, tag))
+
+
+def list_assets(limit=60, owner=None, kind=None, offset=0, query="", tag="", trash=False):
     c = _conn()
-    rows = c.execute("SELECT * FROM assets WHERE (? IS NULL OR owner=?) AND (? IS NULL OR kind=?) ORDER BY created_at DESC, rowid DESC LIMIT ?",
-                     (owner, owner, kind, kind, limit)).fetchall()
-    return [dict(r) for r in rows]
+    where, params = _asset_filter(owner, kind, query, tag, trash)
+    rows = c.execute(f"SELECT * FROM assets WHERE {where} ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?",
+                     (*params, limit, offset)).fetchall()
+    return [{**dict(r), "tags": json.loads(r["tags"] or "[]")} for r in rows]
+
+
+def count_assets(owner, kind=None, query="", tag="", trash=False):
+    where, params = _asset_filter(owner, kind, query, tag, trash)
+    return _conn().execute(f"SELECT COUNT(*) FROM assets WHERE {where}", params).fetchone()[0]
+
+
+def get_asset(asset_id, owner):
+    row = _conn().execute("SELECT * FROM assets WHERE id=? AND owner=?", (asset_id, owner)).fetchone()
+    return dict(row) if row else None
+
+
+def edit_asset(asset_id, owner, name, tags):
+    c = _conn()
+    with c:
+        return c.execute("UPDATE assets SET name=?,tags=? WHERE id=? AND owner=? AND deleted_at IS NULL",
+                         (name, json.dumps(tags, ensure_ascii=False), asset_id, owner)).rowcount > 0
+
+
+def trash_assets(ids, owner, restore=False):
+    c = _conn()
+    with c:
+        placeholders = ",".join("?" for _ in ids)
+        count = c.execute(f"SELECT COUNT(*) FROM assets WHERE id IN ({placeholders}) AND owner=?",
+                          (*ids, owner)).fetchone()[0]
+        if count != len(ids):
+            raise LookupError("部分素材不存在或无权访问")
+        c.execute(f"UPDATE assets SET deleted_at=? WHERE id IN ({placeholders}) AND owner=?",
+                   (None if restore else int(time.time()), *ids, owner))
 
 
 def owns_asset(url, owner):
     return bool(_conn().execute('SELECT 1 FROM assets WHERE url=? AND owner=? LIMIT 1',
                                 (url, owner)).fetchone())
+
+
+def finish_video(task_id, owner, prompt, result):
+    c = _conn()
+    with c:
+        row = c.execute("SELECT status FROM tasks WHERE id=? AND owner=?", (task_id, owner)).fetchone()
+        if not row or row["status"] == "succeed":
+            return
+        for item in result["results"]:
+            c.execute("INSERT INTO assets(id,url,kind,prompt,task_id,owner,created_at) VALUES (?,?,?,?,?,?,?)",
+                      (uuid.uuid4().hex, item["url"], "video", prompt, task_id, owner, int(time.time())))
+        c.execute("UPDATE tasks SET status='succeed',result=?,error=NULL,finished_at=? WHERE id=? AND owner=?",
+                  (json.dumps(result, ensure_ascii=False), int(time.time()), task_id, owner))
 
 
 # ---------------- 钱包 ----------------

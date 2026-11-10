@@ -109,21 +109,42 @@ export const api = {
   agentRun: (body) => post('/api/biz/v1/agent/submit_run', body),
 
   // 上传 / 素材
-  uploadFile: async (file) => {
+  uploadFile: async (file, kind = 'image') => {
     const requestToken = getToken()
     const s = await api.uploadSign()
     if (requestToken !== getToken()) throw new Error('账号已切换，请重新操作')
     const form = new FormData()
     form.append('file', file)
-    const up = await fetch(BASE + `/api/upload/${s.upload_key}`, {
+    const up = await fetch(BASE + `/api/upload/${kind === 'audio' ? 'audio/' : ''}${s.upload_key}`, {
       method: 'POST', body: form, headers: authHeaders(),
     })
     return readResponse(up, '上传图片', requestToken)
   },
   uploadSign: () => post('/api/biz/v1/common/get_upload_sign', {}),
   assetCreate: (body) => post('/api/biz/v1/asset/create_v2', body),
-  assetList: (limit = 60, kind = '') =>
-    get(`/api/biz/v1/asset/list?limit=${limit}${kind ? `&kind=${kind}` : ''}`),
+  assetList: (limit = 60, kind = '', options = {}) =>
+    get('/api/biz/v1/asset/list?' + new URLSearchParams({ limit, ...(kind ? { kind } : {}), ...options })),
+  assetEdit: (id, body) => post(`/api/biz/v1/asset/${id}/edit`, body),
+  assetTrash: (ids, restore = false) => post('/api/biz/v1/asset/trash', { ids, restore }),
+  assetDownload: async (ids) => {
+    const token = getToken()
+    const response = await fetch(BASE + '/api/biz/v1/asset/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ ids }),
+    })
+    if (!response.ok) return readResponse(response, '下载素材', token)
+    const blob = await response.blob()
+    if (token !== getToken()) throw new Error('账号已切换，请重新操作')
+    const url = URL.createObjectURL(blob), link = document.createElement('a')
+    link.href = url; link.download = 'DreamCraft-assets.zip'; link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  },
+  projectList: kind => get('/api/biz/v1/project/list?kind=' + kind),
+  projectGet: id => get('/api/biz/v1/project/' + id),
+  projectSave: body => post('/api/biz/v1/project/save', body),
+  projectDelete: id => post(`/api/biz/v1/project/${id}/delete`, {}),
+  taskRetry: id => post(`/lv/v1/task/${id}/retry`, {}),
+  taskResume: id => post(`/lv/v1/task/${id}/resume`, {}),
 
   // 模板
   templateCategories: () => get('/lv/v1/cc_web/plane/get_categories'),

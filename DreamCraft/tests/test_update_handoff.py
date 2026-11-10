@@ -113,7 +113,21 @@ def main():
             upload.raise_for_status()
         assets_before = request(state, '/api/biz/v1/asset/list', token=token)['assets']
         assert assets_before, upload
-        secret = (data / '.engine-key').read_bytes()
+        secrets = {name: (data / name).read_bytes() for name in ('.engine-key', '.jwt-secret')}
+        media_before = {asset['url']: (data / asset['url'].lstrip('/')).read_bytes()
+                        for asset in assets_before}
+        project_data = {'layers': [{'id': 'kept-layer', 'type': 'image',
+            'src': assets_before[0]['url'], 'x': 0, 'y': 0, 'w': 32, 'h': 32}]}
+        # Older releases have no project API; seed a saved project in the isolated
+        # database to verify that upgrading also preserves existing project tables.
+        fixture = subprocess.run([sys.executable, '-X', 'utf8', '-c',
+            'import json,sys; sys.path.insert(0,sys.argv[1]); import projectstore; '
+            'print(json.dumps(projectstore.save_project(sys.argv[2],None,"canvas",'
+            '"Before upgrade",json.loads(sys.argv[3]),0)))',
+            str(ROOT / 'app/backend'), user['user_id'], json.dumps(project_data)],
+            env={**env, 'DREAMCRAFT_DB': str(data / 'dreamcraft.db')},
+            capture_output=True, text=True, check=True)
+        project = json.loads(fixture.stdout)
         name = f'DreamCraft-{"Setup" if args.installed else "Windows"}-{version}-x64'
         name += '.exe' if args.installed else '.zip'
         if args.online:
@@ -161,10 +175,27 @@ def main():
         assert window_handles(state['pid'], visible=True), 'Updated launcher window is hidden'
         login = request(state, '/api/auth/login', {'username': 'update-user', 'password': 'update-test-password'})
         assert login['user_id'] == user['user_id']
-        assert request(state, '/api/biz/v1/engine/config', token=login['token'])['has_video_key']
+        config = request(state, '/api/biz/v1/engine/config', token=login['token'])
+        assert config['has_video_key'] and config['video_platform'] == 'agnes'
+        assert request(state, '/api/biz/v1/engine/config', token=token)['has_video_key']
         assets_after = request(state, '/api/biz/v1/asset/list', token=login['token'])['assets']
         assert [a['url'] for a in assets_after] == [a['url'] for a in assets_before]
-        assert (data / '.engine-key').read_bytes() == secret
+        for name, content in secrets.items():
+            assert (data / name).read_bytes() == content, name
+        for url, content in media_before.items():
+            assert (data / url.lstrip('/')).read_bytes() == content, url
+            with opener.open(urllib.request.Request(state['url'] + url,
+                    headers={'Authorization': 'Bearer ' + login['token']}), timeout=20) as response:
+                assert response.read() == content, url
+        saved = request(state, '/api/biz/v1/project/' + project['id'], token=login['token'])
+        assert saved['data'] == project_data and saved['revision'] == project['revision']
+        assert saved['name'] == 'Before upgrade'
+        edited = request(state, '/api/biz/v1/project/save', {
+            'id': project['id'], 'kind': 'canvas', 'name': 'After upgrade',
+            'data': project_data, 'revision': saved['revision']}, login['token'])
+        assert edited['revision'] == saved['revision'] + 1
+        assert request(state, '/api/biz/v1/project/' + project['id'],
+                       token=login['token'])['name'] == 'After upgrade'
         close_window(state['pid'])
         for _ in range(150):
             try:
@@ -176,7 +207,7 @@ def main():
             assert (Path(metadata['backup']) / 'DreamCraft.exe').exists()
         print('PASS real ' + metadata['kind'] + ' update ' + args.old_version + ' -> ' + version +
               ': ' + ('GitHub download, ' if args.online else '') +
-              'handoff, restart, login, encrypted key, assets and backup')
+              'handoff, restart, login, encrypted config, exact keys/media, project and backup')
         print('EVIDENCE=' + str(output))
     finally:
         try:

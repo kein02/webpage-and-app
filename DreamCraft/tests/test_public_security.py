@@ -207,7 +207,8 @@ class PublicTests(unittest.TestCase):
     def test_video_refresh_and_persistence(self):
         uid = self.users[0]['user_id']
         main.userconfig.save(uid, video_platform='agnes', video_key='fake-video-key')
-        with patch.object(main.video_platforms, 'generate_blocking', return_value={'results': [{'url': 'https://example.com/video.mp4'}]}):
+        with patch.object(main.video_platforms, 'submit', return_value={'task_id': 'offline-upstream', 'model': 'test'}), \
+             patch.object(main.video_platforms, 'poll', return_value={'status': 'succeed', 'url': 'https://example.com/video.mp4'}):
             response = self.client.post('/lv/v1/editor/video/submit_task', headers=self.a, json={'prompt': 'video-test'})
             self.assertEqual(response.status_code, 200, response.text)
             tid = response.json()['task_id']

@@ -23,6 +23,10 @@ def _conn() -> sqlite3.Connection:
         )""")
         if "owner" not in {r[1] for r in c.execute("PRAGMA table_info(tasks)")}:
             c.execute("ALTER TABLE tasks ADD COLUMN owner TEXT DEFAULT 'anon'")
+        columns = {r[1] for r in c.execute("PRAGMA table_info(tasks)")}
+        for name in ("upstream", "retry_id"):
+            if name not in columns:
+                c.execute(f"ALTER TABLE tasks ADD COLUMN {name} TEXT")
         c.commit()
         _local.conn = c
     return _local.conn
@@ -41,9 +45,10 @@ class TaskStore:
     def update(self, task_id, **fields):
         c = _conn()
         sets = []
-        for k in ("status", "result", "error", "finished_at"):
+        allowed = ("status", "result", "error", "finished_at", "upstream", "retry_id")
+        for k in allowed:
             if k in fields:
-                if k == "result":
+                if k in ("result", "upstream"):
                     sets.append(f"{k}=?")
                     _v = json.dumps(fields[k], ensure_ascii=False) if not isinstance(fields[k], str) else fields[k]
                     fields[k] = _v
@@ -51,7 +56,7 @@ class TaskStore:
                     sets.append(f"{k}=?")
         if sets:
             c.execute(f"UPDATE tasks SET {','.join(sets)} WHERE id=?",
-                      [fields[k] for k in ("status", "result", "error", "finished_at") if k in fields] + [task_id])
+                      [fields[k] for k in allowed if k in fields] + [task_id])
             c.commit()
 
     def get(self, task_id, owner=None):
@@ -70,7 +75,7 @@ class TaskStore:
 
 def _row(r: sqlite3.Row) -> dict:
     d = dict(r)
-    for k in ("payload", "result"):
+    for k in ("payload", "result", "upstream"):
         if d.get(k):
             try:
                 d[k] = json.loads(d[k])

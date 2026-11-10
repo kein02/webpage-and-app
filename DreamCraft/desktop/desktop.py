@@ -12,6 +12,7 @@ import time
 import traceback
 import urllib.request
 import webbrowser
+import subprocess
 
 
 def main():
@@ -19,7 +20,26 @@ def main():
     parser.add_argument('--data-dir', type=Path)
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--no-window', action='store_true')
+    maintenance = parser.add_mutually_exclusive_group()
+    maintenance.add_argument('--backup-to', type=Path)
+    maintenance.add_argument('--restore-from', type=Path)
+    parser.add_argument('--wait-pid', type=int)
     args = parser.parse_args()
+    if args.wait_pid:
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel.OpenProcess(0x100000, False, args.wait_pid)
+        if handle:
+            try:
+                if kernel.WaitForSingleObject(handle, 60000) != 0:
+                    raise RuntimeError('Previous desktop process did not exit')
+            finally:
+                kernel.CloseHandle(handle)
     data = (args.data_dir or Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'DreamCraft').resolve()
     data.mkdir(parents=True, exist_ok=True)
     log = open(data / 'desktop.log', 'a', encoding='utf-8', buffering=1)
@@ -31,6 +51,8 @@ def main():
     try:
         msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
+        if args.backup_to or args.restore_from:
+            raise RuntimeError('请先关闭正在使用此数据目录的 DreamCraft，再备份或恢复。')
         for _ in range(100):
             try:
                 state = json.loads(state_path.read_text(encoding='utf-8'))
@@ -52,6 +74,25 @@ def main():
     if not getattr(sys, 'frozen', False):
         sys.path.insert(0, str(root.parent / 'app' / 'backend'))
     from version import VERSION
+    if args.backup_to or args.restore_from:
+        import backup
+        try:
+            if args.backup_to:
+                result = backup.create(data, args.backup_to, VERSION)
+                message = '备份已保存：\n' + str(result) + '\n备份包含账号和 API 密钥，请妥善保管。'
+            else:
+                result = backup.restore(data, args.restore_from, VERSION)
+                message = '恢复完成。恢复前的数据备份：\n' + str(result)
+            if not args.no_window:
+                import tkinter.messagebox
+                tkinter.messagebox.showinfo('DreamCraft 数据备份', message)
+            print(message)
+        except Exception:
+            print(traceback.format_exc())
+            if args.no_window:
+                raise
+            import tkinter.messagebox
+            tkinter.messagebox.showerror('DreamCraft 数据备份', '操作未完成，原数据已保留。请查看 desktop.log。')
     frontend = root / 'frontend'
     if not getattr(sys, 'frozen', False):
         frontend = root.parent / 'app' / 'frontend' / 'dist'
@@ -148,7 +189,7 @@ def main():
     window.title('DreamCraft ' + VERSION)
     if (root / 'app.ico').exists():
         window.iconbitmap(str(root / 'app.ico'))
-    window.geometry('480x330')
+    window.geometry('480x420')
     window.resizable(False, False)
     frame = ttk.Frame(window, padding=24)
     frame.pack(fill='both', expand=True)
@@ -166,9 +207,45 @@ def main():
     app_dir = Path(sys.executable).resolve().parent
     frozen = bool(getattr(sys, 'frozen', False))
 
+    def maintenance_action(restore=False):
+        if update_state['busy'] or closing.is_set() or not ready.is_set():
+            return
+        from tkinter import filedialog
+        if restore:
+            selected = filedialog.askopenfilename(parent=window, title='选择 DreamCraft 备份',
+                                                 filetypes=[('DreamCraft 备份', '*.zip')])
+        else:
+            selected = filedialog.asksaveasfilename(parent=window, title='保存 DreamCraft 备份',
+                initialfile='DreamCraft-backup-' + time.strftime('%Y%m%d-%H%M%S') + '.zip',
+                defaultextension='.zip', filetypes=[('DreamCraft 备份', '*.zip')])
+        if not selected:
+            return
+        text = ('将恢复备份中的全部账号、项目、素材和引擎设置，替换当前数据。恢复前会自动另存当前数据。'
+                if restore else '备份包含全部账号、项目、素材及 API 密钥，请妥善保管备份文件。')
+        if not messagebox.askokcancel('DreamCraft 数据备份', text + '\n请先保存网页编辑内容。本机服务将重启。', parent=window):
+            return
+        command = [sys.executable]
+        if not frozen:
+            command.append(str(Path(__file__).resolve()))
+        command += ['--data-dir', str(data), '--wait-pid', str(os.getpid()),
+                    '--restore-from' if restore else '--backup-to', selected]
+        if args.no_browser:
+            command.append('--no-browser')
+        subprocess.Popen(command, creationflags=subprocess.CREATE_NO_WINDOW)
+        close()
+
+    backup_row = ttk.Frame(frame)
+    backup_row.pack(fill='x', pady=(10, 0))
+    backup_button = ttk.Button(backup_row, text='备份数据', command=maintenance_action, state='disabled')
+    backup_button.pack(side='left', fill='x', expand=True, padx=(0, 6))
+    restore_button = ttk.Button(backup_row, text='恢复备份', command=lambda: maintenance_action(True), state='disabled')
+    restore_button.pack(side='left', fill='x', expand=True)
+
     def background(operation):
         update_state['busy'] = True
         update_button.configure(state='disabled')
+        backup_button.configure(state='disabled')
+        restore_button.configure(state='disabled')
         def work():
             try:
                 update_events.put(('done', operation()))
@@ -233,6 +310,9 @@ def main():
                 update_state['busy'] = False
                 update_button.configure(state='normal')
                 update_text.configure(text=value)
+                if ready.is_set():
+                    backup_button.configure(state='normal')
+                    restore_button.configure(state='normal')
             elif event == 'done':
                 update_state['busy'] = False
                 action, result = value
@@ -245,6 +325,9 @@ def main():
                 if result:
                     text = '发现新版本 ' + result['tag_name'].removeprefix('dreamcraft-v')
                 update_text.configure(text=text)
+                if ready.is_set():
+                    backup_button.configure(state='normal')
+                    restore_button.configure(state='normal')
         window.after(150, poll_updates)
 
     def close():
@@ -266,6 +349,9 @@ def main():
         elif ready.is_set():
             label.configure(text=url + '\n关闭此窗口即可停止本机服务。')
             open_button.configure(state='normal')
+            if not update_state['busy']:
+                backup_button.configure(state='normal')
+                restore_button.configure(state='normal')
             if not args.no_browser:
                 webbrowser.open(url)
         else:

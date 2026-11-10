@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, assetUrl } from '../api'
 import { Film, LoaderCircle, Plus, Sparkles, X } from 'lucide-react'
 import PageShell from '../components/PageShell'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 /**
  * AI 视频生成页：任务制。
@@ -10,8 +10,9 @@ import { Link } from 'react-router-dom'
  * 已提交任务挂在右上角状态条上，切页不丢（存 localStorage 亦可，此处简单版）。
  */
 export default function AiVideo() {
+  const [search] = useSearchParams()
   const [tasks, setTasks] = useState([]) // {task_id, status, prompt}
-  const [form, setForm] = useState({ prompt: '', model: 'default', refImage: null })
+  const [form, setForm] = useState({ prompt: search.get('prompt') || '', model: 'default', refImage: null })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const hidden = useRef(new Set())
@@ -82,7 +83,7 @@ export default function AiVideo() {
               {t.status === 'succeed' && t.result?.results?.[0]?.url && (
                 <video src={assetUrl(t.result.results[0].url)} controls className="h-16 rounded" />
               )}
-              {t.status === 'failed' && <span className="text-red-400 text-xs">{t.error}</span>}
+              {['failed', 'paused'].includes(t.status) && <span className="text-red-400 text-xs">{t.error}{t.status === 'paused' && <Link to="/ai-tool/task-center" className="text-link">恢复查询</Link>}</span>}
               {['queued', 'running'].includes(t.status) && <span className="text-xs text-ink-faint">生成中…</span>}
               <button onClick={() => close(t.task_id)} className="icon-button" title="隐藏任务" aria-label="隐藏任务"><X size={16} /></button>
             </div>

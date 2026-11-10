@@ -64,6 +64,28 @@ python -m venv .venv
 
 浏览器直连与后端均可识别名称含 `sdxl`/`sd_xl` 的 checkpoint、含 `lightning` 的 LoRA，Z-Image 三个文件名默认匹配表格。源码模式可通过 `SDXL_CKPT`、`SDXL_LORA`、`ZIMAGE_UNET`、`ZIMAGE_CLIP`、`ZIMAGE_VAE` 指定其他兼容文件名；后端优先使用已安装的指定 SDXL 文件，未匹配时再按名称识别。这些变量不会改变浏览器直连的识别规则。
 
+## AI 放大模型
+
+当前源码在图像工具/画布提供真正的模型放大，另保留普通 Lanczos 插值。
+需要 ComfyUI 自带的 `LoadImage`、`UpscaleModelLoader`、
+`ImageUpscaleWithModel`、`ImageScale` 和 `SaveImage` 节点，
+通常无需安装自定义节点。
+
+按模型原作者说明下载 ComfyUI 支持的 ESRGAN / RealESRGAN 等放大权重，
+放入实际运行实例的 `ComfyUI/models/upscale_models/`，保留原文件名。
+从 ComfyUI 刷新模型列表后，在 DreamCraft 点击「刷新放大模型」；
+仍看不到时按 ComfyUI 的重载方式操作，不要误放进 checkpoints 目录。
+`/object_info/UpscaleModelLoader` 的 `model_name` 选项须包含该文件。
+
+本项目不会随安装包分发或自动下载放大模型。模型许可、支持的图片类型、
+显存需求由所用模型决定。2026-11-10 已在本机安装原作者发布的
+`RealESRGAN_x4plus.pth`（67,040,989 字节，约 64 MiB）。
+通过项目真实后端及 ComfyUI，在 RTX 4060 Laptop GPU 上完成
+256×192 → 1024×768 的测试图放大，接口耗时约 4.4 秒，透明通道保持一致。
+这是小图功能验收，大图速度、显存和视觉效果需按实际素材测试。
+使用浏览器直连基础出图不代表公开服务器能访问访客本机的放大引擎；
+需要本机完整图像工具时运行桌面版或源码本机模式。
+
 ## 本机源码指定引擎
 
 在 DreamCraft 项目目录执行：

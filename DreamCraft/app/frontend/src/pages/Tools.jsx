@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { api, assetUrl } from '../api'
 import { Crop, Eraser, Focus, ImagePlus, Scan, Scissors, Sparkles, Upload } from 'lucide-react'
 import PageShell from '../components/PageShell'
+import UpscaleSettings, { defaultUpscale } from '../components/UpscaleSettings'
 
 const TOOLS = [
   { id: 'inpaint', name: '局部重绘', desc: '重新想象画面细节', icon: Eraser },
   { id: 'outpaint', name: '智能扩图', desc: '延展画面之外的世界', icon: Crop },
-  { id: 'super_resolution', name: '高清化', desc: '让细节更清晰', icon: Focus },
+  { id: 'super_resolution', name: '图像放大', desc: 'AI 模型 / 普通插值', icon: Focus },
   { id: 'gen_background', name: '换背景', desc: '为主体换一个场景', icon: ImagePlus },
   { id: 'interactive_matting', name: '智能抠图', desc: '保留主体，移除背景', icon: Scissors },
   { id: 'saliency_seg', name: '主体识别', desc: '提取画面中的主体', icon: Scan },
@@ -19,6 +20,7 @@ export default function Tools() {
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [upscale, setUpscale] = useState(defaultUpscale)
   const tool = TOOLS.find((t) => t.id === active)
 
   const run = async () => {
@@ -28,7 +30,7 @@ export default function Tools() {
       const r = await api.imageEdit(active, {
         image_url: imageUrl, mask_url: maskUrl || undefined,
         prompt,
-        params: { model: 'default', resolution: 2048 },
+        params: active === 'super_resolution' ? upscale : { model: 'default', resolution: 2048 },
       })
       setResult(r)
     } catch (e) {
@@ -66,9 +68,9 @@ export default function Tools() {
           {imageUrl ? '更换图片' : '上传图片'}
         </label>
         {active === 'inpaint' && <label className="reference-upload"><input type="file" accept="image/*" aria-label="上传重绘蒙版" className="sr-only" onChange={e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setMaskUrl(reader.result); reader.readAsDataURL(file) }} />{maskUrl ? <img src={maskUrl} alt="重绘蒙版" /> : <Upload size={18} />}重绘蒙版（白色重绘，黑色保留）</label>}
-        <input value={prompt} onChange={(e) => setPrompt(e.target.value)}
+        {active === 'super_resolution' ? <UpscaleSettings value={upscale} onChange={setUpscale} disabled={busy} /> : <input value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder="描述想要的效果（换背景/重绘区域说明）"
-          className="w-full rounded-lg bg-space-950/60 border border-white/[0.07] px-3 py-2 text-sm outline-none focus:border-brand" />
+          className="w-full rounded-lg bg-space-950/60 border border-white/[0.07] px-3 py-2 text-sm outline-none focus:border-brand" />}
         <button onClick={run} disabled={busy || !imageUrl || (active === 'inpaint' && !maskUrl)}
           className="btn-primary">
           <Sparkles size={15} />{busy ? '处理中…' : '开始处理'}

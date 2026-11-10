@@ -61,6 +61,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Security tests failed' }
           python tests/test_updater.py
           if ($LASTEXITCODE -ne 0) { throw 'Updater tests failed' }
+          python tests/test_backup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Backup tests failed' }
+          python tests/test_editing.py
+          if ($LASTEXITCODE -ne 0) { throw 'Editing tests failed' }
       - name: Install Inno Setup
         run: |
           choco upgrade innosetup --no-progress -y
@@ -92,23 +96,25 @@ jobs:
           Expand-Archive -LiteralPath "releases/DreamCraft-Windows-$version-x64.zip" -DestinationPath build/portable-test
           python desktop/test_desktop.py build/portable-test/DreamCraft/DreamCraft.exe
           if ($LASTEXITCODE -ne 0) { throw 'Portable application test failed' }
-      - name: Test real upgrades from published 1.0.3
+          python tests/test_desktop_backup.py build/portable-test/DreamCraft/DreamCraft.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen backup and restore test failed' }
+      - name: Test real upgrades from published 1.1.1
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           $baseline = 'build/update-baseline'
-          gh release download dreamcraft-v1.0.3 --dir $baseline --pattern '*1.0.3*x64*' --pattern 'SHA256SUMS.txt'
+          gh release download dreamcraft-v1.1.1 --dir $baseline --pattern '*1.1.1*x64*' --pattern 'SHA256SUMS.txt'
           if ($LASTEXITCODE -ne 0) { throw 'Baseline download failed' }
           foreach ($line in Get-Content "$baseline/SHA256SUMS.txt") {
             $digest, $name = $line -split '  ', 2
-            if ($name -notin @('DreamCraft-Setup-1.0.3-x64.exe', 'DreamCraft-Windows-1.0.3-x64.zip')) { throw 'Unexpected baseline asset' }
+            if ($name -notin @('DreamCraft-Setup-1.1.1-x64.exe', 'DreamCraft-Windows-1.1.1-x64.zip')) { throw 'Unexpected baseline asset' }
             if ((Get-FileHash "$baseline/$name" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $digest) { throw 'Baseline checksum failed' }
           }
-          Expand-Archive "$baseline/DreamCraft-Windows-1.0.3-x64.zip" "$baseline/portable"
-          python tests/test_update_handoff.py $baseline
+          Expand-Archive "$baseline/DreamCraft-Windows-1.1.1-x64.zip" "$baseline/portable"
+          python tests/test_update_handoff.py $baseline --old-version 1.1.1
           if ($LASTEXITCODE -ne 0) { throw 'Portable upgrade failed' }
-          python tests/test_update_handoff.py $baseline --installed
+          python tests/test_update_handoff.py $baseline --old-version 1.1.1 --installed
           if ($LASTEXITCODE -ne 0) { throw 'Installed upgrade failed' }
       - uses: actions/upload-artifact@v4
         with:

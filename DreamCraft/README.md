@@ -2,7 +2,7 @@
 
 面向个人创作者的图像、视频与素材工作区，支持 Windows 安装版和网页自部署，接入自己的 ComfyUI 或云端 API。
 
-[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.1.1) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
+[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.2.0) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
 
 ![DreamCraft 3D 创作工作区](docs/screenshots/home-desktop-3d-final.png)
 
@@ -10,15 +10,15 @@
 
 | 方式 | 下载或运行 | 要求 |
 |---|---|---|
-| Windows 安装版 | [DreamCraft-Setup-1.1.1-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.1.1/DreamCraft-Setup-1.1.1-x64.exe) | Windows 10/11 x64，无需 Python/Node |
-| Windows 便携版 | [DreamCraft-Windows-1.1.1-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.1.1/DreamCraft-Windows-1.1.1-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
+| Windows 安装版 | [DreamCraft-Setup-1.2.0-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.2.0/DreamCraft-Setup-1.2.0-x64.exe) | Windows 10/11 x64，无需 Python/Node |
+| Windows 便携版 | [DreamCraft-Windows-1.2.0-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.2.0/DreamCraft-Windows-1.2.0-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
 | 网页自部署 | `docker compose up -d --build` | 在本目录执行，需要 Docker/Compose |
 
 Windows 首次启动后注册登录，进入「引擎设置」，连接自己的 ComfyUI 或填 API Key，再生成一张低分辨率图片验证。程序不包含模型、公共算力或作者的密钥。安装包带中文向导、桌面快捷方式、图标和版本号；卸载保留个人数据。1.1.0 起支持启动器内检查、下载并确认升级；当前发行包仍未签名，维护者接入见 [更新与签名](docs/desktop-updates.md)。
 
 首次使用提供可跳过的引导，检查 ComfyUI 模型和工作流节点，并显示视频平台、FFmpeg 状态。引导可在引擎设置中重新打开。真实生成与尚未验证的范围见 [生成验收](docs/generation-acceptance.md)。
 
-Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 1.0.x 先手动升级一次，1.1.0 起可使用启动器的更新按钮；Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.1.1-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
+Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 1.0.x 先手动升级一次，1.1.0 起可使用启动器的更新按钮；Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.2.0-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
 
 > [!IMPORTANT]
 > 本目录是 React/FastAPI 版 DreamCraft。仓库中的 DreamForge 是独立的 Node.js 项目，两者的安装包、数据和配置不能混用。GitHub Pages 无法运行本项目的完整后端。
@@ -68,12 +68,13 @@ python serve.py --mode public --port 8103
 
 ## 功能与边界
 
-- 图像：文字生成、参考图生成、局部重绘、扩图、透明抠图、换背景。模型及节点须安装齐全；高清化当前为 Lanczos 插值。
+- 图像：文字生成、参考图生成、局部重绘、扩图、透明抠图、换背景、ComfyUI 模型 AI 放大。可选普通 Lanczos 插值，AI 放大需另装兼容模型。
 - 视频：Agnes、硅基流动、百炼、智谱、火山方舟适配，任务进度、失败提示与素材保存。付费云端协议通过模拟响应测试，真实结果取决于平台、余额与队列。
 - 工作区：画布、素材、任务、短剧合成、团队和账号。真实支付未接入，充值及付费订阅默认关闭。
+- 1.2.0 新增项目自动保存、画布撤销重做、素材管理、任务重试与查询恢复、分镜编辑/排序/字幕/剪辑/配乐，以及桌面备份恢复，详见 [工作区使用](docs/workspace.md)。
 - 本机引擎优先使用当前电脑的 ComfyUI；公开模式没有默认算力，也不能代理访问站长的本机引擎。
 - 浏览器出图配置按账号保存；后端引擎密钥 Fernet 加密、不回显。公开文件按素材所属账号鉴权。
-- 当前后端只运行一个 worker；后台运行中的任务遇到重启会失败并退款，已完成任务和作品记录保留。
+- 当前后端只运行一个 worker；已保存平台编号的视频任务重启后继续查询，查询异常可手动恢复；没有平台编号的中断任务失败并退回站内积分，供应商账单独立。
 
 ## 数据与备份
 
@@ -85,11 +86,19 @@ python serve.py --mode public --port 8103
 
 数据库、`uploads`、`exports`、`.jwt-secret`、`.engine-key` 和 `.env` 都是私人运行数据，不得放进 GitHub 或交付包。停止服务后备份整个数据目录；不能只复制正在写入的 SQLite 主文件。
 
+1.2.0 起桌面启动器提供「备份数据」「恢复备份」，恢复前自动保存当前数据副本，详见 [Windows 备份](docs/windows.md#备份与恢复)。ZIP 包含密钥且未额外加密，请保存在私人位置。
+
 ## 验证
 
 ```powershell
 python tests/test_backend.py
 python tests/test_public_security.py
+python tests/test_workspace.py
+python tests/test_workspace.py --public
+python tests/test_backup.py
+python tests/test_editing.py
+python tests/test_editing_browser.py
+python tests/test_workspace_browser.py
 python tests/test_version.py
 python tests/test_stop.py
 python tests/test_modes.py local
@@ -109,6 +118,7 @@ python tests/test_release_browser.py
 | [Windows 使用与构建](docs/windows.md) | 安装、便携版、打包与卸载 |
 | [验收记录](docs/windows-acceptance.md) | 安装回归和已验证范围 |
 | [生成与引导验收](docs/generation-acceptance.md) | 本机和云端真实生成、首次使用及未验证项 |
+| [工作区使用](docs/workspace.md) | 项目保存、素材管理、任务重试与查询恢复 |
 
 ## 参与贡献
 

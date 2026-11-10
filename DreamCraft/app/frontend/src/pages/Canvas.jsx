@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, assetUrl } from '../api'
-import { Download, Eraser, ImagePlus, Layers, MousePointer2, Scan, Sparkles, Square, Type, ZoomIn } from 'lucide-react'
+import { Download, ImagePlus, Layers, MousePointer2, Redo2, Scan, Sparkles, Square, Type, Undo2, ZoomIn } from 'lucide-react'
+import useProject from '../useProject'
+import ProjectBar from '../components/ProjectBar'
+import UpscaleSettings, { defaultUpscale } from '../components/UpscaleSettings'
 
 /**
  * 画布工作台：可交互画布（拖拽/缩放图层）+ 图层面板 + 工具条。
@@ -10,11 +13,45 @@ export default function Canvas() {
   const canvasRef = useRef(null)
   const dragRef = useRef(null)
   const fileRef = useRef(null)
-  const [layers, setLayers] = useState([])
+  const project = useProject('canvas', { layers: [] })
+  const layers = project.data.layers || []
+  const history = useRef({ past: [], future: [] })
+  const [, redrawHistory] = useState(0)
+  const historyPush = () => {
+    history.current.past = [...history.current.past.slice(-49), layers]
+    history.current.future = []
+    redrawHistory(n => n + 1)
+  }
+  const setLayers = updater => {
+    historyPush()
+    project.setData(prev => ({ ...prev, layers: typeof updater === 'function' ? updater(prev.layers || []) : updater }))
+  }
+  const travel = redo => {
+    const from = redo ? 'future' : 'past', to = redo ? 'past' : 'future'
+    if (!history.current[from].length) return
+    const next = history.current[from].pop()
+    history.current[to].push(layers)
+    project.setData({ ...project.data, layers: next })
+    setSel(null); redrawHistory(n => n + 1)
+  }
+  const resetHistory = () => { history.current = { past: [], future: [] }; setSel(null) }
   const [sel, setSel] = useState(null)
   const [tool, setTool] = useState('select')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [upscale, setUpscale] = useState(defaultUpscale)
+
+  useEffect(() => {
+    const handleKey = e => {
+      if (e.target.closest('input,textarea,select,[contenteditable="true"]') || busy) return
+      if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())) {
+        e.preventDefault()
+        travel(e.shiftKey || e.key.toLowerCase() === 'y')
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  })
 
   const addLayer = (l) => {
     const id = crypto.randomUUID()
@@ -28,9 +65,10 @@ export default function Canvas() {
     return { x: (e.clientX - r.left) * 800 / r.width, y: (e.clientY - r.top) * 600 / r.height }
   }
   const onDown = (e, layer) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || busy || !project.ready || project.working) return
     e.preventDefault()
     const p = position(e)
+    historyPush()
     dragRef.current = { id: layer.id, dx: p.x - layer.x, dy: p.y - layer.y }
     setSel(layer.id)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -39,7 +77,7 @@ export default function Canvas() {
     const drag = dragRef.current
     if (!drag) return
     const p = position(e)
-    setLayers(ls => ls.map(l => l.id === drag.id ? { ...l, x: Math.max(0, Math.min(800 - l.w, p.x - drag.dx)), y: Math.max(0, Math.min(600 - l.h, p.y - drag.dy)) } : l))
+    project.setData(prev => ({ ...prev, layers: prev.layers.map(l => l.id === drag.id ? { ...l, x: Math.max(0, Math.min(800 - l.w, p.x - drag.dx)), y: Math.max(0, Math.min(600 - l.h, p.y - drag.dy)) } : l) }))
   }
   const update = patch => setLayers(ls => ls.map(l => l.id === sel ? { ...l, ...patch } : l))
   const upload = async e => {
@@ -68,7 +106,7 @@ export default function Canvas() {
       } else if (tool === 'matting') {
         r = await api.imageEdit('interactive_matting', { image_url: L.src, params: {} })
       } else if (tool === 'upscale') {
-        r = await api.imageEdit('super_resolution', { image_url: L.src, params: { resolution: 2048 } })
+        r = await api.imageEdit('super_resolution', { image_url: L.src, params: upscale })
       }
       if (r?.result_url) {
         setLayers((ls) => ls.map((x) => (x.id === L.id ? { ...x, src: r.result_url, name: x.name + ' (edited)' } : x)))
@@ -119,12 +157,15 @@ export default function Canvas() {
     ['select', '选择', MousePointer2],
     ['fill', '智能填充', Sparkles],
     ['matting', '抠图', Scan],
-    ['upscale', '高清化', ZoomIn],
+    ['upscale', '图像放大', ZoomIn],
   ]
 
   const selected = layers.find((x) => x.id === sel)
 
   return (
+    <>
+    <ProjectBar project={project} disabled={busy} onSwitch={resetHistory} />
+    <fieldset disabled={!project.ready || busy || project.working} className="min-w-0">
     <div className="canvas-workbench">
       {/* 左：工具 + 添加 */}
       <div className="w-44 shrink-0 border-r border-white/[0.07] p-3 space-y-3">
@@ -137,6 +178,7 @@ export default function Canvas() {
             </button>
           ))}
         </div>
+        {tool === 'upscale' && <UpscaleSettings value={upscale} onChange={setUpscale} disabled={busy} />}
         <h2 className="text-sm font-medium text-ink-dim pt-2">添加图层</h2>
         <input ref={fileRef} type="file" accept="image/*" onChange={upload} className="sr-only" aria-label="上传画布图片" />
         <button disabled={busy} onClick={() => fileRef.current?.click()}
@@ -149,7 +191,9 @@ export default function Canvas() {
 
       {/* 中：画布 */}
       <div className="canvas-surface flex-1 overflow-auto p-4">
-        <div className="mb-3 flex gap-2">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button className="icon-button" title="撤销" aria-label="撤销" disabled={!history.current.past.length} onClick={() => travel(false)}><Undo2 size={17} /></button>
+          <button className="icon-button" title="重做" aria-label="重做" disabled={!history.current.future.length} onClick={() => travel(true)}><Redo2 size={17} /></button>
           {tool !== 'select' && (
             <button onClick={runTool} disabled={busy}
               className="rounded-lg bg-brand-500 px-4 py-2 text-sm disabled:opacity-50">
@@ -204,5 +248,7 @@ export default function Canvas() {
         )}
       </div>
     </div>
+    </fieldset>
+    </>
   )
 }

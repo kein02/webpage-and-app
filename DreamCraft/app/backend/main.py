@@ -7,8 +7,8 @@ from fastapi import FastAPI, File, HTTPException, Query, UploadFile, Request, Re
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from typing import Optional
-import uuid, json, os, time, asyncio
+from typing import Optional, Literal
+import uuid, json, os, time, asyncio, hashlib
 from collections import OrderedDict, deque
 from urllib.parse import urlsplit, unquote
 from contextlib import asynccontextmanager
@@ -55,14 +55,24 @@ import team
 import auth
 import userconfig
 import video_platforms
+import projectstore
 
 @asynccontextmanager
 async def lifespan(app):
-    # Background work cannot survive a process restart; release its credits once.
     for task in store.active():
-        wallet.refund_task(task['owner'], task['id'])
-        store.update(task['id'], status='failed', error='服务已重启，请重新提交任务', finished_at=int(time.time()))
-    yield
+        if task.get('upstream') and task['kind'] in ('video', 'drama-shot'):
+            _launch_video(task['id'])
+        else:
+            wallet.refund_task(task['owner'], task['id'])
+            store.update(task['id'], status='failed', error='服务已重启，未保存上游任务编号，请确认平台记录后手动重试', finished_at=int(time.time()))
+    try:
+        yield
+    finally:
+        jobs = list(_video_jobs.values())
+        for job in jobs:
+            job.cancel()
+        if jobs:
+            await asyncio.gather(*jobs, return_exceptions=True)
 
 
 app = FastAPI(title="dreamcraft", version=VERSION, lifespan=lifespan)
@@ -525,14 +535,19 @@ class ImageTaskIn(BaseModel):
 
 @app.post("/lv/v1/editor/image/ai_model/submit_task")
 async def submit_image_task(body: ImageTaskIn, request: Request):
-    uid = _uid(request)
+    return await _submit_image(body, _uid(request))
+
+
+async def _submit_image(body, uid, task_id=None, retry_of=None):
     provider = _provider_for(uid)
     # 未配置引擎时直接给明确提示，不要让用户干等
     if isinstance(provider, MockProvider):
         raise HTTPException(
             400, "未配置出图引擎：请到「引擎设置」接入自己的 ComfyUI 地址或 API key")
-    task_id = uuid.uuid4().hex
+    task_id = task_id or uuid.uuid4().hex
     _task(task_id, kind="image", payload=body.model_dump(), status="running", owner=uid)
+    if retry_of:
+        store.update(retry_of, retry_id=task_id)
     # 扣费门禁（仅当用户或服务器真的有付费额度时才收）
     needs_charge = isinstance(provider, AgnesProvider) and not userconfig.get(uid).get("agnes_key")
     if needs_charge and not wallet.charge_for("image", uid, task_id=task_id,
@@ -570,15 +585,21 @@ class VideoTaskIn(BaseModel):
 @app.post("/lv/v1/editor/video/submit_task")
 async def submit_video_task(body: VideoTaskIn, request: Request):
     """任务制：立即返回 task_id，后台按用户选的平台生成 + 轮询。"""
-    uid = _uid(request)
+    return _submit_video(body, _uid(request))
+
+
+def _submit_video(body, uid, task_id=None, kind="video", shot_id=None, retry_of=None):
     platform, vkey, vbase, vmodel, source = _video_platform_for(uid)
     if not platform or not vkey:
         raise HTTPException(400, "未配置视频平台：请在「引擎设置」里选择平台并填写 API key")
 
-    task_id = uuid.uuid4().hex
-    _task(task_id, kind="video",
-          payload={**body.model_dump(), "platform": platform, "source": source},
+    task_id = task_id or uuid.uuid4().hex
+    _task(task_id, kind=kind,
+          payload={**body.model_dump(), "platform": platform, "source": source,
+                   **({"shot_id": shot_id} if kind == "drama-shot" else {})},
           status="queued", owner=uid)
+    if retry_of:
+        store.update(retry_of, retry_id=task_id)
     needs_charge = source == "server"
     if needs_charge and not wallet.charge_for("video", uid, task_id=task_id,
                                               reason=f"vid:{platform}:{body.model}"):
@@ -586,31 +607,117 @@ async def submit_video_task(body: VideoTaskIn, request: Request):
                      finished_at=int(time.time()))
         raise HTTPException(402, "积分不足：请充值或开通会员")
 
-    async def _run():
-        loop = asyncio.get_event_loop()
-        try:
-            _task_update(task_id, status="running")
-            result = await loop.run_in_executor(
-                None, lambda: video_platforms.generate_blocking(
-                    platform, vkey, body.prompt, body.ref_image,
-                    vmodel or (body.model if body.model not in ("default", "jimeng-video") else None), vbase,
-                    max_wait=1200, interval=10, duration=body.duration))
-            _task_update(task_id, status="succeed", result=result,
-                         finished_at=int(time.time()))
-            for item in result.get("results", []):
-                if item.get("url"):
-                    wallet.add_asset(item["url"], kind="video", prompt=body.prompt,
-                                     task_id=task_id, owner=uid)
-        except Exception as e:
-            _task_update(task_id, status="failed", error=_engine_error(e, uid)[:300],
-                         finished_at=int(time.time()))
-            if needs_charge:
-                wallet.refund(uid, wallet.COST["video"],
-                              reason=f"refund:video:{task_id}", task_id=task_id)
-
-    asyncio.create_task(_run())
+    _launch_video(task_id, (platform, vkey, vbase, vmodel, source))
     return {"task_id": task_id, "status": "queued",
             "platform": platform, "source": source}
+
+
+_video_jobs = {}
+_retry_lock = asyncio.Lock()
+VIDEO_POLL_INTERVAL = 10
+VIDEO_MAX_WAIT = 1200
+
+
+def _launch_video(task_id, settings=None):
+    if task_id in _video_jobs:
+        return
+    job = asyncio.create_task(_run_video(task_id, settings))
+    _video_jobs[task_id] = job
+    job.add_done_callback(lambda done: _video_jobs.pop(task_id, None))
+
+
+async def _run_video(task_id, settings=None):
+    task = store.get(task_id)
+    uid, payload = task["owner"], task["payload"]
+    receipt = task.get("upstream")
+    try:
+        platform, key, base, model, _ = settings or _video_platform_for(uid)
+        fingerprint = hashlib.sha256((key or "").encode()).hexdigest()
+        if receipt and (platform != receipt["platform"] or
+                        (base or "").rstrip("/") != receipt["base"] or
+                        fingerprint != receipt["key_hash"]):
+            raise RuntimeError("视频配置已变更，请恢复提交时的平台、地址和密钥后恢复查询")
+        if not platform or not key:
+            raise RuntimeError("视频平台未配置")
+        _task_update(task_id, status="running", error=None, finished_at=None)
+        if not receipt:
+            # Save immediately after submit; subsequent recovery only polls this ID.
+            submitted = await asyncio.to_thread(
+                video_platforms.submit, platform, key, payload["prompt"], payload.get("ref_image"),
+                model or (payload.get("model") if payload.get("model") not in ("default", "jimeng-video") else None),
+                base, payload.get("duration", 5))
+            receipt = {"task_id": submitted["task_id"], "platform": platform, "model": submitted["model"],
+                       "base": (base or "").rstrip("/"), "key_hash": fingerprint,
+                       "submitted_at": int(time.time())}
+            store.update(task_id, upstream=receipt)
+        deadline = time.monotonic() + VIDEO_MAX_WAIT
+        while time.monotonic() < deadline:
+            result = await asyncio.to_thread(video_platforms.poll, platform, key,
+                                             receipt["task_id"], receipt["model"], base)
+            if result["status"] == "succeed":
+                output = {"status": "success", "platform": platform, "model": receipt["model"],
+                          "results": [{"url": result["url"], "task_id": receipt["task_id"],
+                                       "platform": platform, "model": receipt["model"]}]}
+                # Asset and terminal status commit together, preventing duplicates after restart.
+                wallet.finish_video(task_id, uid, payload["prompt"], output)
+                return
+            if result["status"] == "failed":
+                receipt = None  # A confirmed upstream failure is terminal.
+                raise RuntimeError(result.get("error") or "视频生成失败")
+            await asyncio.sleep(VIDEO_POLL_INTERVAL)
+        raise TimeoutError("查询等待超时，可稍后恢复查询")
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        paused = bool(receipt)
+        store.update(task_id, status="paused" if paused else "failed",
+                     error=_engine_error(e, uid)[:300], finished_at=None if paused else int(time.time()))
+        if not paused:
+            wallet.refund_task(uid, task_id)
+
+
+def _public_task(task):
+    result = dict(task)
+    receipt = result.pop("upstream", None)
+    if receipt:
+        result["upstream"] = {k: receipt[k] for k in ("task_id", "platform", "model")}
+    result.pop("owner", None)
+    return result
+
+
+@app.post("/lv/v1/task/{task_id}/resume")
+async def resume_task(task_id: str, request: Request):
+    task = store.get(task_id, owner=_uid(request))
+    if not task:
+        raise HTTPException(404, "任务不存在或无权访问")
+    if task["status"] in ("queued", "running") and task_id in _video_jobs:
+        return {"task_id": task_id, "status": task["status"]}
+    if task["status"] != "paused" or not task.get("upstream"):
+        raise HTTPException(409, "此任务没有可恢复的上游查询")
+    store.update(task_id, status="queued", error=None)
+    _launch_video(task_id)
+    return {"task_id": task_id, "status": "queued"}
+
+
+@app.post("/lv/v1/task/{task_id}/retry")
+async def retry_task(task_id: str, request: Request):
+    uid = _uid(request)
+    async with _retry_lock:
+        task = store.get(task_id, owner=uid)
+        if not task:
+            raise HTTPException(404, "任务不存在或无权访问")
+        if task.get("retry_id"):
+            child = store.get(task["retry_id"], owner=uid)
+            if child:
+                return {"task_id": child["id"], "status": child["status"]}
+        if task["status"] != "failed" or task["kind"] not in ("image", "video", "drama-shot"):
+            raise HTTPException(409, "仅失败的图片、视频或镜头任务可以重新提交")
+        payload = task["payload"]
+        _check_media_inputs(payload, uid, request)
+        new_id = uuid.uuid4().hex
+        if task["kind"] == "image":
+            return await _submit_image(ImageTaskIn(**payload), uid, new_id, retry_of=task_id)
+        return _submit_video(VideoTaskIn(**payload), uid, new_id, task["kind"], payload.get("shot_id"), retry_of=task_id)
 
 
 @app.get("/lv/v1/task/status/{task_id}")
@@ -629,8 +736,8 @@ async def multi_get_tasks(body: dict, request: Request):
     uid = _uid(request)
     ids = body.get("task_ids") or body.get("ids") or []
     if not ids:
-        return {"tasks": store.list(50, owner=uid)}
-    return {"tasks": [t for i in ids if (t := store.get(i, owner=uid))]}
+        return {"tasks": [_public_task(t) for t in store.list(50, owner=uid)]}
+    return {"tasks": [_public_task(t) for i in ids if (t := store.get(i, owner=uid))]}
 
 
 @app.get("/lv/v1/editor/image/ai_model/materials")
@@ -849,16 +956,62 @@ async def super_resolution(body: EditIn, request: Request):
     import io
     try:
         image = Image.open(io.BytesIO(read_image_bytes(body.image_url)))
+        if image.width * image.height > 16_000_000:
+            raise ValueError("图片不能超过 1600 万像素")
+        image.load()
+        if image.mode == "P":
+            image = image.convert("RGBA" if "transparency" in image.info else "RGB")
         resolution = min(4096, max(256, int(body.params.get("resolution", 2048))))
         scale = resolution / max(image.size)
-        image = image.resize((max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.Resampling.LANCZOS)
+        width, height = max(1, round(image.width * scale)), max(1, round(image.height * scale))
+        method = body.params.get("method", "lanczos")
+        if method not in ("ai", "lanczos"):
+            raise ValueError("放大方式无效")
+        if method == "ai":
+            if scale <= 1:
+                raise ValueError("AI 放大的目标尺寸必须大于原图长边")
+            if image.width * image.height > 4_000_000:
+                raise ValueError("AI 放大原图不能超过 400 万像素，请先裁剪或缩小")
+            provider = _edit_provider(body, request)
+            if not isinstance(provider, ComfyUIProvider):
+                raise ValueError("AI 放大需要连接安装了放大模型的 ComfyUI，请前往引擎设置")
+            result = await provider.upscale(body.image_url, body.params.get("upscale_model"), width, height)
+            # LoadImage exposes alpha separately; preserve it through model inference.
+            if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
+                output = Image.open(io.BytesIO(read_image_bytes(result["result_url"]))).convert("RGBA")
+                output.putalpha(image.convert("RGBA").getchannel("A").resize(output.size, Image.Resampling.LANCZOS))
+                output.save(os.path.join(EXPORT_DIR, result["result_url"].rsplit("/", 1)[-1]))
+            wallet.add_asset(result["result_url"], owner=_uid(request), kind="image")
+            return {"status": "success", **result, "width": width, "height": height,
+                    "note": "AI 放大 · " + result["model"]}
+        image = image.resize((width, height), Image.Resampling.LANCZOS)
         filename = "upscale_" + uuid.uuid4().hex + ".png"
         image.save(os.path.join(EXPORT_DIR, filename))
         url = "/exports/" + filename
         wallet.add_asset(url, owner=_uid(request), kind="image")
-        return {"status": "success", "result_url": url, "engine": "lanczos"}
+        return {"status": "success", "result_url": url, "engine": "lanczos",
+                "width": width, "height": height, "note": "普通插值 · Lanczos"}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(400, f"无法处理图片：{str(e)[:180]}")
+        raise HTTPException(400, f"无法处理图片：{_engine_error(e, _uid(request))[:180]}")
+
+
+class UpscaleProbeIn(BaseModel):
+    engine: Optional[EngineCfgIn] = None
+
+
+@app.post("/lv/v1/editor/image/upscale_models")
+async def upscale_models(body: UpscaleProbeIn, request: Request):
+    try:
+        provider = _edit_provider(body, request)
+        if not isinstance(provider, ComfyUIProvider):
+            return {"ready": False, "models": [], "message": "AI 放大需要连接 ComfyUI，请前往引擎设置。"}
+        return await asyncio.to_thread(provider.upscale_models)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, "放大模型检测失败：" + _engine_error(e, _uid(request))[:180])
 
 
 # ---------------------------------------------------------------------------
@@ -956,10 +1109,174 @@ async def asset_create_v2(body: dict, request: Request):
 
 
 @app.get("/api/biz/v1/asset/list")
-async def asset_list(limit: int = Query(default=60, ge=1, le=500), kind: str = None, request: Request = None):
+async def asset_list(limit: int = Query(default=60, ge=1, le=500), kind: str = None,
+                     offset: int = Query(default=0, ge=0), q: str = Query(default="", max_length=200),
+                     tag: str = Query(default="", max_length=40), trash: bool = False,
+                     request: Request = None):
     uid = _uid(request) if request else "anon"
-    items = wallet.list_assets(limit, owner=uid, kind=kind)
-    return {"assets": items}
+    items = wallet.list_assets(limit, owner=uid, kind=kind, offset=offset, query=q, tag=tag, trash=trash)
+    return {"assets": items, "total": wallet.count_assets(uid, kind, q, tag, trash)}
+
+
+class AssetEditIn(BaseModel):
+    name: str = Field(max_length=120)
+    tags: list[str] = Field(default_factory=list, max_length=12)
+
+
+class AssetSelectionIn(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=100)
+    restore: bool = False
+
+
+@app.post("/api/biz/v1/asset/{asset_id}/edit")
+async def asset_edit(asset_id: str, body: AssetEditIn, request: Request):
+    tags = list(dict.fromkeys(t.strip() for t in body.tags if t.strip()))
+    if any(len(t) > 40 for t in tags):
+        raise HTTPException(400, "标签不能超过 40 个字符")
+    if not wallet.edit_asset(asset_id, _uid(request), body.name.strip(), tags):
+        raise HTTPException(404, "素材不存在或无权访问")
+    return {"updated": True}
+
+
+@app.post("/api/biz/v1/asset/trash")
+async def asset_trash(body: AssetSelectionIn, request: Request):
+    try:
+        wallet.trash_assets(list(dict.fromkeys(body.ids)), _uid(request), body.restore)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    return {"updated": True}
+
+
+@app.post("/api/biz/v1/asset/download")
+async def asset_download(body: AssetSelectionIn, request: Request):
+    # ZIP only local managed files. Never fetch arbitrary remote URLs into a bundle.
+    import io
+    import zipfile
+    from pathlib import Path
+    uid = _uid(request)
+    files, size = [], 0
+    for aid in dict.fromkeys(body.ids):
+        item = wallet.get_asset(aid, uid)
+        if not item or item["deleted_at"]:
+            raise HTTPException(404, "素材不存在或无权访问")
+        parts = urlsplit(item["url"])
+        path = unquote(parts.path)
+        root = UPLOAD_DIR if path.startswith("/uploads/") else EXPORT_DIR if path.startswith("/exports/") else None
+        if parts.netloc or not root:
+            raise HTTPException(400, "远程素材请从预览页单独下载")
+        target = Path(root) / Path(path).name
+        if target.resolve().parent != Path(root).resolve() or not target.is_file():
+            raise HTTPException(404, "素材文件不存在")
+        size += target.stat().st_size
+        if size > 200 * 1024 * 1024:
+            raise HTTPException(413, "单次下载不能超过 200MB")
+        files.append((aid + target.suffix, target))
+    def bundle():
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_STORED) as archive:
+            for name, target in files:
+                archive.write(target, name)
+        return output.getvalue()
+    return Response(await asyncio.to_thread(bundle), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="DreamCraft-assets.zip"'})
+
+
+class ProjectIn(BaseModel):
+    id: Optional[str] = None
+    kind: Literal["canvas", "drama"]
+    name: str = Field(min_length=1, max_length=120)
+    data: dict
+    revision: int = Field(default=0, ge=0)
+
+
+@app.get("/api/biz/v1/project/list")
+async def project_list(request: Request, kind: Literal["canvas", "drama"]):
+    return {"projects": projectstore.list_projects(_uid(request), kind)}
+
+
+@app.get("/api/biz/v1/project/{project_id}")
+async def project_get(project_id: str, request: Request):
+    result = projectstore.get_project(_uid(request), project_id)
+    if not result:
+        raise HTTPException(404, "项目不存在或无权访问")
+    return result
+
+
+@app.post("/api/biz/v1/project/save")
+async def project_save(body: ProjectIn, request: Request):
+    if len(json.dumps(body.data, ensure_ascii=False).encode("utf-8")) > 2 * 1024 * 1024:
+        raise HTTPException(413, "项目内容不能超过 2MB，请使用已上传的素材")
+    if not body.name.strip():
+        raise HTTPException(400, "项目名称不能为空")
+    _validate_project_data(body.kind, body.data)
+    try:
+        return projectstore.save_project(_uid(request), body.id, body.kind, body.name.strip(), body.data, body.revision)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+def _validate_project_data(kind, data):
+    import math
+    if kind == "canvas":
+        layers = data.get("layers", [])
+        if not isinstance(layers, list) or len(layers) > 500:
+            raise HTTPException(400, "画布最多保存 500 个图层")
+        ids = set()
+        for layer in layers:
+            if (not isinstance(layer, dict) or not isinstance(layer.get("id"), str)
+                    or not layer["id"] or layer["id"] in ids
+                    or layer.get("type") not in ("image", "text", "rect")):
+                raise HTTPException(400, "画布图层格式无效")
+            ids.add(layer["id"])
+            for field, maximum in (("x", 800), ("y", 600), ("w", 800), ("h", 600)):
+                value = layer.get(field)
+                minimum = 1 if field in ("w", "h") else 0
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
+                    raise HTTPException(400, "画布图层尺寸或位置无效")
+            for field in ("name", "text", "src", "color", "fill"):
+                if field in layer and not isinstance(layer[field], str):
+                    raise HTTPException(400, "画布图层内容无效")
+            if layer["type"] == "image" and not layer.get("src", "").startswith(("/uploads/", "/exports/", "https://", "http://")):
+                raise HTTPException(400, "图片图层请使用已上传的素材地址")
+    else:
+        shots, ids = data.get("shots", []), data.get("taskIds", [])
+        if (not isinstance(shots, list) or len(shots) > 20 or
+                any(not isinstance(s, dict) or not isinstance(s.get("prompt"), str)
+                    or not isinstance(s.get("camera", ""), str)
+                    or not isinstance(s.get("shot_id", 0), int) for s in shots)
+                or not isinstance(ids, list) or len(ids) > 20
+                or any(not isinstance(tid, str) for tid in ids)
+                or not isinstance(data.get("theme", ""), str)):
+            raise HTTPException(400, "短剧项目格式无效")
+        if data.get("finalVideo") is not None and (not isinstance(data["finalVideo"], str) or
+                not data["finalVideo"].startswith(("/uploads/", "/exports/", "http://", "https://"))):
+            raise HTTPException(400, "短剧成片地址无效")
+        for shot in shots:
+            for field, low, high, default in (("duration", 1, 15, 5), ("trim_start", 0, 60, 0)):
+                value = shot.get(field, default)
+                if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
+                    raise HTTPException(400, "短剧镜头时长或剪辑起点无效")
+            if not isinstance(shot.get("subtitle", ""), str) or len(shot.get("subtitle", "")) > 300:
+                raise HTTPException(400, "字幕最多 300 字")
+        if "bgm" in data and (not isinstance(data["bgm"], str) or
+                (data["bgm"] and not data["bgm"].startswith(("/uploads/", "/exports/")))):
+            raise HTTPException(400, "请使用已上传的配乐")
+        volume = data.get("bgmVolume", 0.2)
+        if type(volume) not in (int, float) or not math.isfinite(volume) or not 0 <= volume <= 1:
+            raise HTTPException(400, "配乐音量无效")
+        if "subtitlesEnabled" in data and type(data["subtitlesEnabled"]) is not bool:
+            raise HTTPException(400, "字幕开关无效")
+        if not isinstance(data.get("bgmName", ""), str) or len(data.get("bgmName", "")) > 260:
+            raise HTTPException(400, "配乐名称无效")
+
+
+@app.post("/api/biz/v1/project/{project_id}/delete")
+async def project_delete(project_id: str, request: Request):
+    if not projectstore.delete_project(_uid(request), project_id):
+        raise HTTPException(404, "项目不存在或无权访问")
+    return {"deleted": True}
 
 
 @app.post("/api/upload/{key}")
@@ -987,6 +1304,31 @@ async def do_upload(key: str, file: UploadFile = File(...), request: Request = N
         f.write(data)
     url = f"/uploads/{filename}"
     wallet.add_asset(url, kind="upload", owner=uid)
+    return {"url": url}
+
+
+@app.post("/api/upload/audio/{key}")
+async def upload_audio(key: str, request: Request, file: UploadFile = File(...)):
+    import re
+    import pathlib
+    import compose
+    if not re.fullmatch(r"[a-f0-9]{32}", key):
+        raise HTTPException(400, "上传标识无效")
+    extension = pathlib.Path(file.filename or '').suffix.lower()
+    if extension not in ('.mp3', '.wav', '.ogg', '.m4a', '.flac'):
+        raise HTTPException(400, "配乐支持 MP3、WAV、OGG、M4A、FLAC")
+    data = await file.read(20 * 1024 * 1024 + 1)
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(413, "配乐不能超过 20MB")
+    path = pathlib.Path(UPLOAD_DIR) / (uuid.uuid4().hex + extension)
+    try:
+        path.write_bytes(data)
+        await asyncio.to_thread(compose.validate_audio, path)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise HTTPException(400, "无法读取配乐，请确认音频有效且 FFmpeg 已安装")
+    url = "/uploads/" + path.name
+    wallet.add_asset(url, kind="audio", owner=_uid(request))
     return {"url": url}
 
 
@@ -1096,41 +1438,22 @@ async def drama_shot_to_video(body: dict, background=False, request: Request = N
     prompt = shot.get("prompt", body.get("prompt", ""))
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 10000:
         raise HTTPException(400, '分镜提示词不能为空')
-    duration = body.get('duration', 5)
+    camera = shot.get('camera', '')
+    if not isinstance(camera, str) or len(camera) > 120:
+        raise HTTPException(400, '镜头描述最多 120 字')
+    if camera:
+        prompt += '\nCamera: ' + camera
+    if len(prompt) > 10000:
+        raise HTTPException(400, '画面与运镜描述合计不能超过 10000 字')
+    duration = shot.get('duration', body.get('duration', 5))
     if isinstance(duration, bool) or not isinstance(duration, (float, int)) or not 1 <= duration <= 15:
         raise HTTPException(400, '视频时长必须在 1 至 15 秒之间')
     loop = asyncio.get_event_loop()
 
     if background:
-        task_id = uuid.uuid4().hex
-        _task(task_id, kind="drama-shot",
-              payload={"shot_id": shot.get("shot_id"), "prompt": prompt,
-                       "platform": platform}, status="queued", owner=uid)
-        needs_charge = _video_platform_for(uid)[4] == 'server'
-        if needs_charge and not wallet.charge_for('video', uid, task_id=task_id, reason='drama-shot'):
-            _task_update(task_id, status='failed', error='积分不足', finished_at=int(time.time()))
-            raise HTTPException(402, '积分不足')
-
-        async def _run():
-            try:
-                _task_update(task_id, status="running")
-                r = await loop.run_in_executor(
-                    None, lambda: video_platforms.generate_blocking(
-                        platform, vkey, prompt, None, vmodel, vbase,
-                        max_wait=1200, interval=10, duration=duration))
-                _task_update(task_id, status="succeed", result=r,
-                             finished_at=int(time.time()))
-                for item in r.get("results", []):
-                    if item.get("url"):
-                        wallet.add_asset(item["url"], kind="video", prompt=prompt, task_id=task_id, owner=uid)
-            except Exception as e:
-                _task_update(task_id, status="failed", error=_engine_error(e, uid)[:300],
-                             finished_at=int(time.time()))
-                if needs_charge:
-                    wallet.refund_task(uid, task_id)
-
-        asyncio.create_task(_run())
-        return task_id
+        result = _submit_video(VideoTaskIn(prompt=prompt, model=body.get("model", "default"), duration=duration),
+                               uid, kind="drama-shot", shot_id=shot.get("shot_id"))
+        return result["task_id"]
 
     r = await loop.run_in_executor(
         None, lambda: video_platforms.generate_blocking(
@@ -1147,6 +1470,13 @@ async def drama_render_all(body: dict, request: Request):
     duration = body.get('duration', 5)
     if isinstance(duration, bool) or not isinstance(duration, (float, int)) or not 1 <= duration <= 15:
         raise HTTPException(400, '视频时长必须在 1 至 15 秒之间')
+    for shot in shots:
+        d = shot.get('duration', duration)
+        if (type(d) not in (float, int) or not 1 <= d <= 15
+                or not isinstance(shot.get('camera', ''), str) or len(shot.get('camera', '')) > 120):
+            raise HTTPException(400, '分镜时长必须在 1 至 15 秒之间，镜头描述最多 120 字')
+        if len(shot['prompt']) + (len(shot.get('camera', '')) + 9 if shot.get('camera') else 0) > 10000:
+            raise HTTPException(400, '画面与运镜描述合计不能超过 10000 字')
     uid = _uid(request)
     source = _video_platform_for(uid)[4]
     if source == 'server' and wallet.get_balance(uid) < wallet.COST['video'] * len(shots):
@@ -1168,19 +1498,35 @@ async def drama_render_all(body: dict, request: Request):
 async def drama_compose(body: dict, request: Request):
     import compose
     uid = _uid(request)
-    urls = list(body.get("urls", []))
+    urls = body.get("urls", [])
     tids = body.get("task_ids", [])
+    if (not isinstance(urls, list) or not isinstance(tids, list) or len(urls) > 20 or len(tids) > 20
+            or any(not isinstance(u, str) or not u for u in urls + tids)
+            or (urls and tids)):
+        raise HTTPException(400, "请选择 1 至 20 个镜头")
+    subtitles, clips = body.get("subtitles"), body.get("clips")
+    try:
+        compose.validate_options(len(urls or tids), subtitles, clips, body.get("bgm_volume", 0.2))
+        duration = body.get("shot_duration", 5.0)
+        if type(duration) not in (int, float) or not 0 < duration <= 60:
+            raise ValueError("合成时长无效")
+        if body.get('bgm') is not None and not isinstance(body['bgm'], str):
+            raise ValueError("配乐地址无效")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     if not urls and tids:
-        selected_subtitles = []
+        selected_subtitles, selected_clips = [], []
         for index, tid in enumerate(tids):
             t = store.get(tid, owner=uid)
             if not t:
                 raise HTTPException(404, "镜头任务不存在")
             if t and t.get("status") == "succeed" and (t.get("result") or {}).get("results"):
                 urls.append(t["result"]["results"][0]["url"])
-                subtitles = body.get("subtitles") or []
-                selected_subtitles.append(subtitles[index] if index < len(subtitles) else {"text": ""})
-        body["subtitles"] = selected_subtitles
+                selected_subtitles.append(subtitles[index] if subtitles and index < len(subtitles) else {"text": ""})
+                if clips:
+                    selected_clips.append(clips[index])
+        subtitles = selected_subtitles if subtitles is not None else None
+        clips = selected_clips if clips is not None else None
     if not urls:
         raise HTTPException(400, "没有可用的镜头视频：传 urls 或已完成短剧任务的 task_ids")
     check = await asyncio.to_thread(compose.ffmpeg_status)
@@ -1191,9 +1537,12 @@ async def drama_compose(body: dict, request: Request):
         out = await loop.run_in_executor(
             None, lambda: compose.compose(
                 urls,
-                subtitles=body.get("subtitles"),
+                subtitles=subtitles,
                 bgm=body.get("bgm"),
-                shot_duration=float(body.get("shot_duration", 5.0))))
+                shot_duration=duration, clips=clips,
+                bgm_volume=body.get("bgm_volume", 0.2)))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, f"合成失败: {e}")
     wallet.add_asset(out["url"], kind="video", prompt=body.get("prompt", "短剧合成"),

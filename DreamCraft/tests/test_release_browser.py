@@ -191,8 +191,9 @@ try:
         page.get_by_placeholder('输入短剧主题，例如：深夜便利店里的重逢').fill('Regression story')
         page.get_by_role('button', name='生成剧本', exact=True).click()
         page.get_by_role('heading', name='分镜脚本（6 镜头）', exact=True).wait_for()
-        page.route('**/lv/v1/short_drama/render_all', lambda route: route.fulfill(json={'task_ids': ['audit-shot']}))
-        page.route('**/lv/v2/task/multi_get_tasks', lambda route: route.fulfill(json={'tasks': [{'id': 'audit-shot', 'status': 'running'}]}))
+        audit_shots = [f'audit-shot-{i}' for i in range(6)]
+        page.route('**/lv/v1/short_drama/render_all', lambda route: route.fulfill(json={'task_ids': audit_shots}))
+        page.route('**/lv/v2/task/multi_get_tasks', lambda route: route.fulfill(json={'tasks': [{'id': tid, 'status': 'running'} for tid in audit_shots]}))
         page.get_by_role('button', name='全部提交渲染', exact=True).click()
         assert page.get_by_role('button', name='重新提交全部', exact=True).is_disabled()
         page.goto(url + '/ai-tool/asset')
@@ -205,7 +206,7 @@ try:
             'video': {'configured': True, 'platform': 'agnes'},
             'ffmpeg': {'ready': False, 'message': 'FFmpeg 未就绪。请安装 FFmpeg 并重启应用。'}}))
         page.route('**/lv/v2/task/multi_get_tasks', lambda route: route.fulfill(json={
-            'tasks': [{'id': 'audit-shot', 'status': 'succeed', 'result': {'results': [{'url': '/exports/audit.mp4'}]}}]}))
+            'tasks': [{'id': tid, 'status': 'succeed', 'result': {'results': [{'url': '/exports/audit.mp4'}]}} for tid in audit_shots]}))
         page.reload()
         page.get_by_text('FFmpeg 未就绪。请安装 FFmpeg 并重启应用。', exact=True).wait_for()
         assert page.get_by_role('button', name='合成完整成片', exact=True).is_disabled()

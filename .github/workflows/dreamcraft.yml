@@ -33,12 +33,20 @@ jobs:
       - run: python tests/test_updater.py
       - run: python -m pip install -r app/backend/requirements.txt httpx playwright
       - run: python -m playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
       - run: npm ci && npm run build
         working-directory: DreamCraft/app/frontend
       - run: npm audit --audit-level=moderate
         working-directory: DreamCraft/app/frontend
       - run: python tests/test_backend.py
       - run: python tests/test_public_security.py
+      - run: python tests/test_workspace.py
+      - run: python tests/test_workspace.py --public
+      - run: python tests/test_workspace_browser.py
+      - run: python tests/test_backup.py
+      - run: python tests/test_editing.py
+      - run: python tests/test_compose.py
+      - run: python tests/test_editing_browser.py
       - run: python tests/test_modes.py local
       - run: python tests/test_modes.py public
       - run: python tests/test_release_browser.py
