@@ -30,12 +30,12 @@ opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 processes = []
 
 
-def request(url, body=None, token=None):
+def request(url, body=None, token=None, timeout=180):
     headers = {'Content-Type': 'application/json'}
     if token:
         headers['Authorization'] = 'Bearer ' + token
     req = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None, headers=headers)
-    with opener.open(req, timeout=180) as response:
+    with opener.open(req, timeout=timeout) as response:
         return json.load(response)
 
 
@@ -51,7 +51,8 @@ def start(gui=False):
             raise AssertionError('EXE exited: ' + (data / 'desktop.log').read_text(encoding='utf-8'))
         try:
             state = json.loads((data / 'desktop.json').read_text(encoding='utf-8'))
-            if request(state['url'] + '/api/desktop/status')['instance'] == state['instance']:
+            if (state.get('pid') == proc.pid and
+                    request(state['url'] + '/api/desktop/status', timeout=2)['instance'] == state['instance']):
                 return proc, state
         except (OSError, ValueError, KeyError):
             pass
