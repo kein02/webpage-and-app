@@ -63,6 +63,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Updater tests failed' }
           python tests/test_backup.py
           if ($LASTEXITCODE -ne 0) { throw 'Backup tests failed' }
+          python tests/test_storage.py
+          if ($LASTEXITCODE -ne 0) { throw 'Storage migration tests failed' }
           python tests/test_editing.py
           if ($LASTEXITCODE -ne 0) { throw 'Editing tests failed' }
       - name: Install Inno Setup

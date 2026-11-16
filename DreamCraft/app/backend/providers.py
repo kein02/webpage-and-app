@@ -657,6 +657,26 @@ EXPORTS_DIR = os.path.join(
     os.environ.get("DATA_DIR") or os.path.dirname(__file__), "exports")
 
 
+def store_remote_media(url, kind):
+    from urllib.parse import urlsplit
+    from pathlib import Path
+    suffix = Path(urlsplit(url).path).suffix.lower()
+    if suffix not in ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp4', '.webm', '.mov'):
+        suffix = '.mp4' if kind == 'video' else '.png'
+    os.makedirs(EXPORTS_DIR, exist_ok=True)
+    name = 'gen_' + uuid.uuid4().hex + suffix
+    destination = Path(EXPORTS_DIR) / name
+    temporary = destination.with_suffix('.part')
+    try:
+        download_remote(url, str(temporary))
+        if not temporary.stat().st_size:
+            raise ValueError('生成结果为空文件')
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return '/exports/' + name
+
+
 def _mirror_to_exports(url: str) -> str:
     """把 ComfyUI 的 /view?... 结果下载到本地 exports/，返回稳定的 /exports/ 路径。
     失败时原样返回（不阻断生成）。"""

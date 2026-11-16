@@ -37,6 +37,11 @@ def png():
 class WorkspaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if MODE == "local":
+            download = patch("providers.open_remote",
+                side_effect=lambda *args, **kwargs: io.BytesIO(png()))
+            download.start()
+            cls.addClassCleanup(download.stop)
         cls.client = TestClient(main.app)
         cls.client.__enter__()
         cls.users = [cls.client.post("/api/auth/register", json={"username": name, "password": "test-password"}).json()

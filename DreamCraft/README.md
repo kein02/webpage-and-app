@@ -1,129 +1,103 @@
 # 造梦工坊 DreamCraft
 
-面向个人创作者的图像、视频与素材工作区，支持 Windows 安装版和网页自部署，接入自己的 ComfyUI 或云端 API。
+面向个人创作者的图像、视频与素材工作区。连接自己的 ComfyUI 或云端 API，在 Windows 桌面版中创作，也可自部署为网页应用。
 
-[Windows 下载](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.2.0) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
+[下载 1.3.0](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.3.0) · [版本说明](docs/releases/1.3.0.md) · [API 接入](docs/api-setup.md) · [ComfyUI 部署](docs/comfyui-setup.md) · [网页部署](docs/deployment.md)
 
 ![DreamCraft 3D 创作工作区](docs/screenshots/home-desktop-3d-final.png)
 
-## 快速开始
+## 下载与开始使用
 
-| 方式 | 下载或运行 | 要求 |
+| 方式 | 下载或入口 | 要求 |
 |---|---|---|
-| Windows 安装版 | [DreamCraft-Setup-1.2.0-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.2.0/DreamCraft-Setup-1.2.0-x64.exe) | Windows 10/11 x64，无需 Python/Node |
-| Windows 便携版 | [DreamCraft-Windows-1.2.0-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.2.0/DreamCraft-Windows-1.2.0-x64.zip) | 解压后运行 DreamCraft.exe，保留 `_internal` |
-| 网页自部署 | `docker compose up -d --build` | 在本目录执行，需要 Docker/Compose |
+| Windows 安装版 | [DreamCraft-Setup-1.3.0-x64.exe](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.3.0/DreamCraft-Setup-1.3.0-x64.exe) | Windows 10/11 x64，无需 Python、Node.js |
+| Windows 便携版 | [DreamCraft-Windows-1.3.0-x64.zip](https://github.com/kein02/webpage-and-app/releases/download/dreamcraft-v1.3.0/DreamCraft-Windows-1.3.0-x64.zip) | 完整解压，运行 `DreamCraft/DreamCraft.exe`，保留 `_internal` |
+| 网页自部署 | [Docker / 源码部署指南](docs/deployment.md) | 持久化存储、自己的 ComfyUI 或云端 API |
 
-Windows 首次启动后注册登录，进入「引擎设置」，连接自己的 ComfyUI 或填 API Key，再生成一张低分辨率图片验证。程序不包含模型、公共算力或作者的密钥。安装包带中文向导、桌面快捷方式、图标和版本号；卸载保留个人数据。1.1.0 起支持启动器内检查、下载并确认升级；当前发行包仍未签名，维护者接入见 [更新与签名](docs/desktop-updates.md)。
+1. 安装或解压后打开 DreamCraft，等待浏览器自动打开工作区。
+2. 注册并登录，在「引擎设置」连接自己的 ComfyUI，或填写云端 API Key，测试并保存。
+3. 在「AI 图片」生成一张图片，确认能在素材库预览；在任务中心查看进度或错误。
 
-首次使用提供可跳过的引导，检查 ComfyUI 模型和工作流节点，并显示视频平台、FFmpeg 状态。引导可在引擎设置中重新打开。真实生成与尚未验证的范围见 [生成验收](docs/generation-acceptance.md)。
+程序不包含 ComfyUI、模型、公共算力或作者密钥。本机 ComfyUI 需要先启动；视频生成需要云端 API，短剧合成另需 FFmpeg。首次使用引导可跳过，也可在引擎设置中重新打开。
 
-Docker 克隆与验证命令见 [部署指南](docs/deployment.md)。版本更新前备份数据，Windows 1.0.x 先手动升级一次，1.1.0 起可使用启动器的更新按钮；Docker 更新源码后重新构建。校验文件位于同一 Release，PowerShell 可用 `Get-FileHash .\DreamCraft-Setup-1.2.0-x64.exe -Algorithm SHA256` 核对。维护者可按 [Windows 发布流程](docs/windows.md#自动发布) 推送版本标签自动打包，历史变化见 [版本说明](docs/releases)。
+关闭启动窗口会停止服务，关闭浏览器标签页不会停止。安装和依赖排障见 [Windows 使用](docs/windows.md)。
 
-> [!IMPORTANT]
-> 本目录是 React/FastAPI 版 DreamCraft。仓库中的 DreamForge 是独立的 Node.js 项目，两者的安装包、数据和配置不能混用。GitHub Pages 无法运行本项目的完整后端。
+## 1.3.0：选择全部数据的保存位置
 
-## 目录
+在启动窗口点击「迁移数据文件夹」，选择一个空文件夹。先保存项目并等待生成结束，程序会停止服务、迁移并校验账号、项目、配置、密钥、上传素材、生成文件和日志，成功后移除旧数据并从新目录重启。**后续应用数据只写入所选目录，不自动另存第二份。**
 
-| 位置 | 内容 |
+本机模式新生成的云端图片、视频会下载到当前数据目录的 `exports`；既有远程素材不会自动补下载。新目录所在磁盘不可访问时会提示错误，不会回退建立空白数据库。
+
+ComfyUI、模型、浏览器配置、未保存草稿及浏览器手动下载目录独立管理。迁移范围与失败处理见 [数据目录说明](docs/windows.md#备份与恢复)，历史变化见 [版本说明](docs/releases)。
+
+## 创作功能
+
+| 工作流 | 内容 |
 |---|---|
-| `app/frontend` | React、Vite、Three.js 界面 |
-| `app/backend` | FastAPI、SQLite、引擎及视频平台适配 |
-| `desktop` | Windows 启动器、图标、版本资源与安装包构建 |
-| `tests` | 离线回归、浏览器验收和可选 GPU 实测 |
-| `releases` | 可分发安装包、便携 ZIP 与已解压应用；不提交 Git |
-| `docs` | 部署、Windows 使用、验收记录与整理清单 |
-| `local-data` | 本机公开模式预览数据；不提交 Git |
-| `build`、`tools` | 可再生成的构建目录与本机构建工具；不提交 Git |
+| 图像 | 文生图、参考图生成、局部重绘、扩图、透明抠图、换背景、ComfyUI 模型 AI 放大与普通插值 |
+| 视频与短剧 | 云端视频任务、逐镜头编辑与排序、字幕、裁剪、配乐和 FFmpeg 成片合成 |
+| 项目与画布 | 项目自动保存、打开、重命名；画布撤销与重做 |
+| 素材与任务 | 搜索、名称与标签、回收站恢复、所选本机素材 ZIP 下载、任务详情、失败重试与查询恢复 |
+| 桌面数据 | 完整目录迁移、全量备份、校验恢复与恢复前自动备份 |
 
-前端为 React/Vite/Three.js，后端为 FastAPI/SQLite。模型在独立 ComfyUI 或供应商平台运行。
+图片支持本机 ComfyUI 或 Agnes；视频适配 Agnes、硅基流动、百炼、智谱与火山方舟。模型、权限、额度和排队状态由供应商决定，重试生成可能再次计费。真实付费云端视频与完整短剧生成链路尚未完成验收，范围见 [生成验收](docs/generation-acceptance.md)。真实支付未接入，充值和付费订阅默认关闭。
 
-## Windows 使用
+## 数据、备份与更新
 
-打开 `releases` 中的安装程序，或解压便携 ZIP 后运行 `DreamCraft.exe`。程序启动本机网页并打开浏览器，关闭启动窗口停止服务。无需 Python 或 Node.js。
+| 运行方式 | 数据目录 |
+|---|---|
+| Windows 应用 | 初始 `%LOCALAPPDATA%\DreamCraft`；迁移后使用所选目录 |
+| 源码本机模式 | 默认 `app/backend`，可用 `--data-dir` 指定 |
+| 源码公开模式 | 默认 `app/backend/public-data`，可用 `--data-dir` 指定 |
+| Docker Compose | 持久化命名卷，容器内 `/data` |
 
-ComfyUI、模型和云端密钥由使用者提供。短剧视频合成另需 FFmpeg。详细说明见 [Windows 使用与构建](docs/windows.md)。
+启动器提供「打开数据目录」「备份数据」「恢复备份」。备份 ZIP 包含账号、作品及文件形式的密钥，未额外加密，请保存在私人位置。手动备份前停止服务，复制整个数据目录，不能只复制正在写入的 SQLite 主文件。
 
-## 源码运行
+1.1.0 起可在启动器检查、下载并确认更新；1.0.x 需要手动安装新版一次。升级前保存项目并备份数据，卸载保留个人数据。当前包未签名，签名与更新机制见 [Windows 更新](docs/desktop-updates.md)。在 [Release](https://github.com/kein02/webpage-and-app/releases/tag/dreamcraft-v1.3.0) 下载 `SHA256SUMS.txt` 后，可用 PowerShell 核对安装器：
 
-Python 3.11+、Node.js 20.19+ 或 22.12+，图像生成另需 ComfyUI 或云端密钥。建议虚拟环境，完整步骤见部署指南。
+```powershell
+Get-FileHash .\DreamCraft-Setup-1.3.0-x64.exe -Algorithm SHA256
+```
+
+输出的 SHA256 应与校验文件中同名条目一致。
+
+## 自部署与开发
+
+已有源码时，在 `DreamCraft` 目录运行 `docker compose up -d --build`，打开 `http://127.0.0.1:8100`。完整克隆、持久卷、HTTPS、备份及 Railway/Vercel 步骤见 [部署指南](docs/deployment.md)。
+
+源码开发需要 Python 3.11+、Node.js 20.19+ 或 22.12+：
 
 ```powershell
 git clone https://github.com/kein02/webpage-and-app.git
 cd webpage-and-app/DreamCraft
 python -m pip install -r app/backend/requirements.txt
-cd app/frontend
-npm ci
-npm run build
-cd ../..
-
-# 本机：使用运行电脑上的默认引擎与 API 环境变量
+npm ci --prefix app/frontend
+npm run build --prefix app/frontend
 python serve.py --mode local --port 8102
-
-# 公开：用户登录并配置自己的引擎，忽略站长 API
-python serve.py --mode public --port 8103
 ```
 
-开发热更新使用 `python run.py`，前端 5173、后端 8100。该脚本可以复用已启动的 ComfyUI Desktop。`python stop.py` 默认仅停止网页服务，保留 ComfyUI；自定义后端端口可传 `--port`，只有显式传 `--comfy` 才同时停止 8188。
+浏览器打开 `http://127.0.0.1:8102`。`local` 使用当前电脑的默认引擎与 API 环境变量；公开部署用 `--mode public` 和独立数据目录，公开模式忽略站长密钥，要求用户登录并配置自己的引擎。开发热更新使用 `python run.py`，停止用 `python stop.py`，默认保留外部 ComfyUI。
 
-## 功能与边界
+后端为 FastAPI/SQLite，前端为 React/Vite/Three.js，当前后端限一个 worker。测试和维护约定见 [参与开发](CONTRIBUTING.md)，桌面构建与自动发布见 [Windows 构建](docs/windows.md#构建)。
 
-- 图像：文字生成、参考图生成、局部重绘、扩图、透明抠图、换背景、ComfyUI 模型 AI 放大。可选普通 Lanczos 插值，AI 放大需另装兼容模型。
-- 视频：Agnes、硅基流动、百炼、智谱、火山方舟适配，任务进度、失败提示与素材保存。付费云端协议通过模拟响应测试，真实结果取决于平台、余额与队列。
-- 工作区：画布、素材、任务、短剧合成、团队和账号。真实支付未接入，充值及付费订阅默认关闭。
-- 1.2.0 新增项目自动保存、画布撤销重做、素材管理、任务重试与查询恢复、分镜编辑/排序/字幕/剪辑/配乐，以及桌面备份恢复，详见 [工作区使用](docs/workspace.md)。
-- 本机引擎优先使用当前电脑的 ComfyUI；公开模式没有默认算力，也不能代理访问站长的本机引擎。
-- 浏览器出图配置按账号保存；后端引擎密钥 Fernet 加密、不回显。公开文件按素材所属账号鉴权。
-- 当前后端只运行一个 worker；已保存平台编号的视频任务重启后继续查询，查询异常可手动恢复；没有平台编号的中断任务失败并退回站内积分，供应商账单独立。
+> [!IMPORTANT]
+> 此目录是 React/FastAPI 版 DreamCraft。仓库中的 DreamForge 是独立 Node.js 项目，两者的安装包、数据和配置不能混用。GitHub Pages 无法运行本项目的完整后端。
 
-## 数据与备份
+## 文档与排障
 
-| 模式 | 默认位置 |
+| 入口 | 适用问题 |
 |---|---|
-| 源码本机模式 | `app/backend` |
-| 源码公开模式 | `app/backend/public-data`，可用 `--data-dir` 指定 |
-| Windows 应用 | `%LOCALAPPDATA%\DreamCraft` |
-
-数据库、`uploads`、`exports`、`.jwt-secret`、`.engine-key` 和 `.env` 都是私人运行数据，不得放进 GitHub 或交付包。停止服务后备份整个数据目录；不能只复制正在写入的 SQLite 主文件。
-
-1.2.0 起桌面启动器提供「备份数据」「恢复备份」，恢复前自动保存当前数据副本，详见 [Windows 备份](docs/windows.md#备份与恢复)。ZIP 包含密钥且未额外加密，请保存在私人位置。
-
-## 验证
-
-```powershell
-python tests/test_backend.py
-python tests/test_public_security.py
-python tests/test_workspace.py
-python tests/test_workspace.py --public
-python tests/test_backup.py
-python tests/test_editing.py
-python tests/test_editing_browser.py
-python tests/test_workspace_browser.py
-python tests/test_version.py
-python tests/test_stop.py
-python tests/test_modes.py local
-python tests/test_modes.py public
-python tests/test_release_browser.py
-```
-
-浏览器测试需要 Playwright。GPU 实测由 `test_local.py`、`test_direct.py` 等脚本单独执行，会调用本机 ComfyUI。`test_generation_live.py --cloud` 会提交付费图片和视频请求，`--video-only` 只补测视频；不带参数时跳过。测试输出在 `tests/output`，历史脚本位于 `tests/legacy`，其中部分会提交实际生成请求，不能视为无费用回归。
-
-## 文档
-
-| 文档 | 内容 |
-|---|---|
-| [API 接入](docs/api-setup.md) | 图片/视频密钥、模型、接口调用和排障 |
-| [ComfyUI 部署](docs/comfyui-setup.md) | 桌面端、源码/便携安装、模型节点与跨域 |
-| [网页部署](docs/deployment.md) | Docker、源码、HTTPS、备份和模式隔离 |
-| [Windows 使用与构建](docs/windows.md) | 安装、便携版、打包与卸载 |
-| [验收记录](docs/windows-acceptance.md) | 安装回归和已验证范围 |
-| [生成与引导验收](docs/generation-acceptance.md) | 本机和云端真实生成、首次使用及未验证项 |
-| [工作区使用](docs/workspace.md) | 项目保存、素材管理、任务重试与查询恢复 |
+| [Windows 使用与构建](docs/windows.md) | 安装、便携版、数据迁移、备份恢复、卸载 |
+| [API 接入](docs/api-setup.md) | 图片/视频密钥、模型、调用和接口错误 |
+| [ComfyUI 部署](docs/comfyui-setup.md) | 地址、模型、节点、跨域与显存问题 |
+| [工作区使用](docs/workspace.md) | 项目保存、素材管理、短剧编辑与任务恢复 |
+| [网页部署](docs/deployment.md) | Docker、源码、HTTPS、模式隔离与备份 |
+| [Windows 验收](docs/windows-acceptance.md) / [生成验收](docs/generation-acceptance.md) | 已验证范围、复测命令与未验证项 |
 
 ## 参与贡献
 
-问题和改进通过本仓库 Issues/PR 提交，请注明 DreamCraft 及版本。环境、回归命令与敏感信息要求见 [贡献说明](CONTRIBUTING.md)。
+欢迎通过本仓库 Issues/PR 提交问题和改进，请注明 DreamCraft、版本、系统及复现步骤。环境与回归命令见 [贡献说明](CONTRIBUTING.md)。请勿上传 `.env`、数据库、密钥、私人作品或包含令牌的链接。
 
 ## License
 
-沿用所在仓库的 [Apache-2.0](LICENSE) 许可。第三方依赖、ComfyUI、自定义节点和模型遵循各自许可；模型或供应商授权不由本项目授予。
+沿用所在仓库的 [Apache-2.0](LICENSE) 许可。第三方依赖、ComfyUI、自定义节点和模型遵循各自许可；模型与供应商服务授权由使用者自行确认。

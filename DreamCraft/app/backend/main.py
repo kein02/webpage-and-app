@@ -119,8 +119,11 @@ def _engine_error(error, uid):
     return message
 
 
-def _store_image_data(url):
+def _store_image_data(url, kind='image'):
     if not url.startswith('data:' + 'image/'):
+        if RUN_MODE == 'local' and url.startswith(('https://', 'http://')):
+            from providers import store_remote_media
+            return store_remote_media(url, kind)
         return url
     import base64, io
     from PIL import Image
@@ -655,6 +658,9 @@ async def _run_video(task_id, settings=None):
             result = await asyncio.to_thread(video_platforms.poll, platform, key,
                                              receipt["task_id"], receipt["model"], base)
             if result["status"] == "succeed":
+                if RUN_MODE == 'local' and result['url'].startswith(('https://', 'http://')):
+                    from providers import store_remote_media
+                    result['url'] = await asyncio.to_thread(store_remote_media, result['url'], 'video')
                 output = {"status": "success", "platform": platform, "model": receipt["model"],
                           "results": [{"url": result["url"], "task_id": receipt["task_id"],
                                        "platform": platform, "model": receipt["model"]}]}
@@ -1096,7 +1102,7 @@ async def asset_create_v2(body: dict, request: Request):
             validate_remote_url(url)
         except ValueError as e:
             raise HTTPException(400, str(e))
-    url = await asyncio.to_thread(_store_image_data, url)
+    url = await asyncio.to_thread(_store_image_data, url, body.get('kind', 'image'))
     body['url'] = url
     aid = wallet.add_asset(body.get("url", ""), kind=body.get("kind", "image"),
                            prompt=body.get("prompt", ""),

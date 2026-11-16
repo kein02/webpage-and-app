@@ -1,5 +1,6 @@
 """Exercise the frozen executable with isolated data and no paid generation."""
 import io
+import base64
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,9 @@ import urllib.request
 
 from PIL import Image
 from playwright.sync_api import sync_playwright
+
+import ctypes
+ctypes.windll.user32.SetProcessDPIAware()
 
 exe = Path(sys.argv[1]).resolve()
 version = (Path(__file__).resolve().parents[1] / 'VERSION').read_text(encoding='utf-8').strip()
@@ -39,8 +43,10 @@ def request(url, body=None, token=None, timeout=180):
         return json.load(response)
 
 
-def start(gui=False):
-    command = [str(exe), '--data-dir', str(data), '--no-browser']
+def start(gui=False, move_from=None):
+    command = [str(exe), '--data-dir', str(move_from or data), '--no-browser']
+    if move_from:
+        command += ['--move-data-to', str(data)]
     if not gui:
         command.append('--no-window')
     proc = subprocess.Popen(command,
@@ -91,7 +97,8 @@ try:
     buf = io.BytesIO()
     Image.new('RGB', (64, 48), '#21a798').save(buf, 'PNG')
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
+        browser = pw.chromium.launch(headless=True,
+            **({'channel': os.environ['DREAMCRAFT_TEST_BROWSER']} if os.environ.get('DREAMCRAFT_TEST_BROWSER') else {}))
         page = browser.new_page(viewport={'width': 1440, 'height': 1000})
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
@@ -130,11 +137,30 @@ try:
         generated_count = 1
         print('PASS frozen EXE real local GPU generation and saved task', flush=True)
     print('PASS frozen EXE: clean data, no Python/Node PATH, loopback runtime, duplicate launch, login, encrypted config, upload and application routes', flush=True)
+    request(base + '/api/biz/v1/project/save',
+        {'kind': 'canvas', 'name': 'Migrated project', 'data': {'layers': []}}, token)
+    secret = (data / '.jwt-secret').read_bytes()
+    engine_key = (data / '.engine-key').read_bytes()
     stop(proc, state)
-    proc, state = start()
+    previous_data = data
+    data = test_root / 'selected-data'
+    data.mkdir()
+    proc, state = start(move_from=previous_data)
+    assert not previous_data.exists(), 'Old data directory was retained'
+    assert Path(request(state['url'] + '/api/desktop/status')['data_dir']) == data
+    assert (data / '.jwt-secret').read_bytes() == secret
+    assert (data / '.engine-key').read_bytes() == engine_key
+    assert request(state['url'] + '/api/biz/v1/project/list?kind=canvas', token=token)['projects'][0]['name'] == 'Migrated project'
     assert request(state['url'] + '/api/auth/login', {'username': 'desktop-test', 'password': 'test-password'})['user_id'] == user['user_id']
     assert request(state['url'] + '/api/biz/v1/engine/config', token=token)['has_video_key']
     assert len(request(state['url'] + '/api/biz/v1/asset/list', token=token)['assets']) == 1 + generated_count
+    generated_asset = request(state['url'] + '/api/biz/v1/asset/create_v2',
+        {'url': 'data:' + 'image/png;base64,' + base64.b64encode(buf.getvalue()).decode(),
+         'kind': 'image', 'record_task': True}, token)
+    saved_image = data / 'exports' / Path(generated_asset['url']).name
+    assert saved_image.read_bytes() == buf.getvalue()
+    assert not previous_data.exists()
+    print('PASS frozen EXE: full data migration, original directory removed, accounts/projects/keys/media preserved; new media only in selected data directory', flush=True)
     saved_port = state['port']
     stop(proc, state)
     with socket.socket() as occupied:
@@ -161,6 +187,11 @@ try:
             break
         time.sleep(.1)
     assert windows, 'Launcher window missing'
+    time.sleep(1)
+    from PIL import ImageGrab
+    rect = wintypes.RECT()
+    assert user32.GetWindowRect(windows[0], ctypes.byref(rect))
+    ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom)).save(test_root / 'launcher.png')
     user32.PostMessageW(windows[0], 0x0010, 0, 0)
     assert proc.wait(timeout=15) == 0
     print('PASS frozen EXE: restart preserves accounts/config/assets; occupied port fallback; authenticated graceful shutdown', flush=True)

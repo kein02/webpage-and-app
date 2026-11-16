@@ -23,6 +23,8 @@ def main():
     maintenance = parser.add_mutually_exclusive_group()
     maintenance.add_argument('--backup-to', type=Path)
     maintenance.add_argument('--restore-from', type=Path)
+    maintenance.add_argument('--move-data-to', type=Path)
+    parser.add_argument('--remember-data-dir', action='store_true')
     parser.add_argument('--wait-pid', type=int)
     args = parser.parse_args()
     if args.wait_pid:
@@ -40,7 +42,17 @@ def main():
                     raise RuntimeError('Previous desktop process did not exit')
             finally:
                 kernel.CloseHandle(handle)
-    data = (args.data_dir or Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'DreamCraft').resolve()
+    import storage
+    data = storage.data_directory(args.data_dir)
+    remember_location = args.remember_data_dir or args.data_dir is None or storage.remembered_directory() == data
+    if args.move_data_to:
+        try:
+            data = storage.migrate(data, args.move_data_to, remember_location)
+        except Exception as error:
+            if not args.no_window:
+                import tkinter.messagebox
+                tkinter.messagebox.showerror('数据迁移未完成', str(error) + '\n请从原数据目录重新启动。')
+            raise
     data.mkdir(parents=True, exist_ok=True)
     log = open(data / 'desktop.log', 'a', encoding='utf-8', buffering=1)
     sys.stdout = sys.stderr = log
@@ -51,7 +63,7 @@ def main():
     try:
         msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
-        if args.backup_to or args.restore_from:
+        if args.backup_to or args.restore_from or args.move_data_to:
             raise RuntimeError('请先关闭正在使用此数据目录的 DreamCraft，再备份或恢复。')
         for _ in range(100):
             try:
@@ -189,7 +201,7 @@ def main():
     window.title('DreamCraft ' + VERSION)
     if (root / 'app.ico').exists():
         window.iconbitmap(str(root / 'app.ico'))
-    window.geometry('480x420')
+    window.geometry('480x560')
     window.resizable(False, False)
     frame = ttk.Frame(window, padding=24)
     frame.pack(fill='both', expand=True)
@@ -199,6 +211,39 @@ def main():
     open_button = ttk.Button(frame, text='打开工作区', command=lambda: webbrowser.open(url), state='disabled')
     open_button.pack(fill='x')
     ttk.Button(frame, text='打开数据目录', command=lambda: os.startfile(data)).pack(fill='x', pady=6)
+    def choose_output():
+        from tkinter import filedialog
+        if update_state['busy'] or closing.is_set() or not ready.is_set():
+            return
+        selected = filedialog.askdirectory(parent=window, title='选择新的空数据文件夹',
+                                           initialdir=str(data.parent), mustexist=True)
+        if not selected:
+            return
+        try:
+            storage.validate_destination(data, selected)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('无法迁移数据文件夹', str(error), parent=window)
+            return
+        if not messagebox.askokcancel('迁移数据文件夹',
+                '将把账号、项目、配置、上传素材和生成文件全部搬到：\n' + selected +
+                '\n校验成功后删除旧数据，并从新目录重启。请先保存网页内容并等待生成任务结束。', parent=window):
+            return
+        command = [sys.executable]
+        if not frozen:
+            command.append(str(Path(__file__).resolve()))
+        command += ['--data-dir', str(data), '--wait-pid', str(os.getpid()), '--move-data-to', selected]
+        if remember_location:
+            command.append('--remember-data-dir')
+        if args.no_browser:
+            command.append('--no-browser')
+        subprocess.Popen(command, creationflags=subprocess.CREATE_NO_WINDOW)
+        close()
+
+    ttk.Button(frame, text='迁移数据文件夹', command=choose_output).pack(fill='x', pady=6)
+    ttk.Label(frame, text='数据文件夹：' + str(data), wraplength=420).pack(anchor='w')
+    if (data / 'migration-warning.txt').exists():
+        ttk.Label(frame, text='部分旧文件未移除，详情见数据文件夹中的 migration-warning.txt',
+                  wraplength=420).pack(anchor='w')
     update_text = ttk.Label(frame, text='版本 ' + VERSION, wraplength=420)
     update_text.pack(anchor='w', pady=(8, 6))
     update_events = queue.Queue()
@@ -368,9 +413,10 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except Exception:
+    except Exception as error:
         traceback.print_exc()
         if '--no-window' not in sys.argv:
             import tkinter.messagebox
-            tkinter.messagebox.showerror('DreamCraft', '程序启动失败，请查看 %LOCALAPPDATA%\\DreamCraft\\desktop.log')
+            tkinter.messagebox.showerror('DreamCraft', '程序启动失败：' + str(error) +
+                '\n启动日志位于当前数据文件夹的 desktop.log。')
         raise

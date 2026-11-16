@@ -58,6 +58,48 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(self.client.get("/api/auth/me", headers=self.headers[0]).json()["anon"])
         self.assertEqual(self.client.get("/api/auth/me", headers={"Authorization": "Bearer bad"}).status_code, 401)
 
+    def test_generated_media_has_one_managed_local_file(self):
+        directory = Path(SANDBOX.name) / 'exports'
+        with patch.object(main, '_provider_for', return_value=Provider()):
+            response = self.client.post('/lv/v1/editor/image/ai_model/submit_task',
+                json={'prompt': 'single data directory'}, headers=self.headers[0])
+        self.assertEqual(response.status_code, 200, response.text)
+        url = response.json()['result']['results'][0]['url']
+        self.assertEqual((directory / Path(url).name).read_bytes(), image_data())
+        self.assertEqual(self.client.get(url).status_code, 200)
+        uid = main.auth.verify(self.headers[0]['Authorization'][7:])
+        main.store.create('auto-save-video', 'video', {'prompt': 'video'}, owner=uid)
+        settings = ('agnes', 'fake-key', None, None, 'user')
+        before = set(directory.iterdir())
+        with patch.object(main.video_platforms, 'submit', return_value={'task_id': 'upstream', 'model': 'test'}), \
+                patch.object(main.video_platforms, 'poll', return_value={'status': 'succeed', 'url': 'https://example.com/generated.mp4'}), \
+                patch.object(providers, 'open_remote', return_value=io.BytesIO(b'video')):
+            self.client.portal.call(main._run_video, 'auto-save-video', settings)
+        task = main.store.get('auto-save-video')
+        self.assertEqual(task['status'], 'succeed')
+        video_url = task['result']['results'][0]['url']
+        self.assertTrue(video_url.startswith('/exports/'))
+        self.assertEqual((directory / Path(video_url).name).read_bytes(), b'video')
+        self.assertEqual(len(set(directory.iterdir()) - before), 1)
+        self.assertEqual(self.client.get(video_url).content, b'video')
+
+    def test_remote_media_failure_leaves_no_partial_file(self):
+        directory = Path(SANDBOX.name) / 'exports'
+        before = set(directory.iterdir())
+        with patch.object(providers, 'open_remote', side_effect=OSError('download failed')):
+            with self.assertRaises(OSError):
+                providers.store_remote_media('https://example.com/video.mp4', 'video')
+        self.assertEqual(set(directory.iterdir()), before)
+
+    def test_browser_video_without_extension_is_saved_as_video(self):
+        with patch.object(providers, 'open_remote', return_value=io.BytesIO(b'video')):
+            response = self.client.post('/api/biz/v1/asset/create_v2',
+                json={'url': 'https://example.com/download?id=video', 'kind': 'video'},
+                headers=self.headers[0])
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()['url'].endswith('.mp4'))
+        self.assertEqual(self.client.get(response.json()['url']).content, b'video')
+
     def test_upload(self):
         h = self.headers[0]
         sign = self.client.post("/api/biz/v1/common/get_upload_sign", json={}).json()
